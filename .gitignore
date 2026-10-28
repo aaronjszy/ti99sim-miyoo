@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Build and packaging output (make build / make package / make zip)
+/build/
+/dist/
+
+# Dependencies fetched by `make deps`; the pinned checksums in deps/SHA256SUMS are tracked
+/deps/*
+!/deps/SHA256SUMS
+
+# The emulator builds in-tree; keep its output out of git
+/ti99sim/bin/
+/ti99sim/src/*/Release/
+/ti99sim/src/*/Debug/
+*.o
+*.a
+*.so
+*.so.*
+*.dep
+
+# TI ROMs, cartridges and disk images are copyrighted: never commit them
+*.ctg
+# Upstream ships a CF7+ firmware image (cf7a+.bin) in roms/; it is third-party and not needed here
+/ti99sim/roms/*.bin
+
+# Local run output
+*.log

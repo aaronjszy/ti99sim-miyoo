@@ -1,0 +1,6 @@
+{
+	"label": "TI-99/4A",
+	"icon": "",
+	"launch": "launch.sh",
+	"description": "TI-99/Sim emulator"
+}
