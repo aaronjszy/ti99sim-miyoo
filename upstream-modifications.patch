@@ -1,0 +1,713 @@
+diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
+--- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
++++ b/ti99sim/include/keymap.hpp	2026-10-29 15:17:09
+@@ -0,0 +1,47 @@
++//----------------------------------------------------------------------------
++//
++// File:        keymap.hpp
++//
++// Description: Configurable host-key -> TI-99/4A action mapping (used by the
++//              Miyoo Mini build, where the buttons arrive as keyboard events)
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef KEYMAP_HPP_
++#define KEYMAP_HPP_
++
++#include <filesystem>
++#include <istream>
++#include <map>
++#include <SDL.h>
++#include "itms9901.hpp"
++
++struct sKeyAction
++{
++	enum TYPE { KEYS, FIRE, RESET };
++
++	TYPE          type{ KEYS };
++	VIRTUAL_KEY_E key1{ VK_NONE };		// VK_NONE for both keys == ignore the host key
++	VIRTUAL_KEY_E key2{ VK_NONE };
++};
++
++class cKeyMap
++{
++	std::map<SDL_Keycode,sKeyAction> m_Actions;
++
++	void Parse( std::istream &, const char *source );
++
++public:
++
++	// Starts with the built-in defaults
++	cKeyMap( );
++
++	// Overrides/extends the mapping from a file, if it exists
++	void Load( const std::filesystem::path &file );
++
++	const sKeyAction *Find( SDL_Keycode ) const;
++};
++
++#endif
+diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
+--- a/ti99sim/include/ti994a-sdl.hpp	2026-10-29 15:17:09
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 15:17:09
+@@ -31,6 +31,7 @@
+ 
+ #include <atomic>
+ #include "ti994a-gk.hpp"
++#include "keymap.hpp"
+ 
+ struct SDL_Thread;
+ 
+@@ -53,6 +54,8 @@
+ 
+ 	SDL_Keycode         m_ActiveKeycode[ SDL_NUM_SCANCODES ];
+ 
++	cKeyMap             m_KeyMap;
++
+ public:
+ 
+ 	cSdlTI994A( iCartridge *, iTMS9918A * = nullptr, iTMS9919 * = nullptr, iTMS5220 * = nullptr );
+@@ -73,6 +76,7 @@
+ 
+ 	void KeyPressed( SDL_Keysym keysym );
+ 	void KeyReleased( SDL_Keysym keysym );
++	void ApplyKeyAction( const sKeyAction &action, int scancode, bool down );
+ 
+ 	void StartThread( );
+ 	void StopThread( );
+Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
+diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
+--- a/ti99sim/src/core/support.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/core/support.cpp	2026-10-29 15:17:09
+@@ -416,7 +416,96 @@
+ 	return sha1.Digest( );
+ }
+ 
+-#if defined( OS_LINUX )
++#if defined( OS_LINUX ) && defined( TI_NO_OPENSSL )
++
++	// Self-contained SHA-1 for targets without OpenSSL (e.g. Miyoo Mini)
++	struct SHA_CTX
++	{
++		uint32_t	h[ 5 ]{ 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
++		uint8_t		block[ 64 ]{ };
++		uint64_t	total{ 0 };
++	};
++
++	static void SHA1Transform( SHA_CTX *ctx, const uint8_t *p )
++	{
++		auto rol = []( uint32_t v, int n ) { return ( v << n ) | ( v >> ( 32 - n )); };
++		uint32_t w[ 80 ];
++
++		for( int i = 0; i < 16; i++ )
++			w[ i ] = ( uint32_t( p[ i * 4 ] ) << 24 ) | ( uint32_t( p[ i * 4 + 1 ] ) << 16 ) | ( uint32_t( p[ i * 4 + 2 ] ) << 8 ) | p[ i * 4 + 3 ];
++
++		for( int i = 16; i < 80; i++ )
++			w[ i ] = rol( w[ i - 3 ] ^ w[ i - 8 ] ^ w[ i - 14 ] ^ w[ i - 16 ], 1 );
++
++		uint32_t a = ctx->h[ 0 ], b = ctx->h[ 1 ], c = ctx->h[ 2 ], d = ctx->h[ 3 ], e = ctx->h[ 4 ];
++
++		for( int i = 0; i < 80; i++ )
++		{
++			uint32_t f, k;
++
++			if( i < 20 )      { f = ( b & c ) | ( ~b & d );          k = 0x5A827999; }
++			else if( i < 40 ) { f = b ^ c ^ d;                       k = 0x6ED9EBA1; }
++			else if( i < 60 ) { f = ( b & c ) | ( b & d ) | ( c & d ); k = 0x8F1BBCDC; }
++			else              { f = b ^ c ^ d;                       k = 0xCA62C1D6; }
++
++			uint32_t t = rol( a, 5 ) + f + e + k + w[ i ];
++			e = d; d = c; c = rol( b, 30 ); b = a; a = t;
++		}
++
++		ctx->h[ 0 ] += a; ctx->h[ 1 ] += b; ctx->h[ 2 ] += c; ctx->h[ 3 ] += d; ctx->h[ 4 ] += e;
++	}
++
++	void *CreateSHA1Context( )
++	{
++		return new SHA_CTX;
++	}
++
++	bool UpdateSHA1Context( void *context, const void *data, size_t length )
++	{
++		auto *ctx = static_cast<SHA_CTX*>( context );
++		auto *src = static_cast<const uint8_t*>( data );
++
++		while( length-- )
++		{
++			ctx->block[ ctx->total++ % 64 ] = *src++;
++
++			if( ctx->total % 64 == 0 )
++				SHA1Transform( ctx, ctx->block );
++		}
++
++		return true;
++	}
++
++	std::string GetDigest( void *context )
++	{
++		auto *ctx = static_cast<SHA_CTX*>( context );
++		uint64_t bits = ctx->total * 8;
++		uint8_t pad = 0x80;
++
++		UpdateSHA1Context( context, &pad, 1 );
++		pad = 0;
++		while( ctx->total % 64 != 56 )
++			UpdateSHA1Context( context, &pad, 1 );
++
++		for( int i = 7; i >= 0; i-- )
++		{
++			uint8_t b = uint8_t( bits >> ( i * 8 ));
++			UpdateSHA1Context( context, &b, 1 );
++		}
++
++		UINT8 digest[ 20 ];
++		for( int i = 0; i < 20; i++ )
++			digest[ i ] = UINT8( ctx->h[ i / 4 ] >> ( 24 - 8 * ( i % 4 )));
++
++		return digest2string( digest, 20 );
++	}
++
++	void ReleaseSHA1Context( void *context )
++	{
++		delete static_cast<SHA_CTX*>( context );
++	}
++
++#elif defined( OS_LINUX )
+ 
+ 	#include <openssl/sha.h>
+ 
+diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
+--- a/ti99sim/src/sdl/Makefile	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/Makefile	2026-10-29 15:17:09
+@@ -9,7 +9,9 @@
+ 
+ XLIBS	+= -lpthread
+ XLIBS	+= -lrt
++ifndef TI_NO_OPENSSL
+ XLIBS	+= `pkg-config --libs openssl`
++endif
+ 
+ ifeq ($(OS),OS_MACOSX)
+ CFLAGS	+= -I ~/Library/Frameworks/SDL.framework/Headers
+@@ -20,6 +22,7 @@
+ 
+ FILES	+= main.cpp
+ FILES	+= bitmap.cpp
++FILES	+= keymap.cpp
+ FILES	+= tms9919-sdl.cpp
+ FILES	+= tms9918a-sdl.cpp
+ FILES	+= ti994a-sdl.cpp
+diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
+--- a/ti99sim/src/sdl/bitmap.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 15:17:09
+@@ -28,6 +28,7 @@
+ 
+ #include <algorithm>
+ #include <cstdio>
++#include <vector>
+ #include <SDL.h>
+ #include "common.hpp"
+ #include "logger.hpp"
+@@ -460,6 +461,35 @@
+ 	else if(( m_Scale2x == true ) && ( scale == 3 ))
+ 	{
+ 		Scale3X( original );
++	}
++	else if(( Width( ) >= original->Width( )) && ( Height( ) >= original->Height( )))
++	{
++		// Arbitrary (non-integer) size: nearest-neighbour, so every output pixel is exactly one source colour
++		std::vector<int> xMap( m_Width );
++		for( int x = 0; x < m_Width; x++ )
++		{
++			xMap[ x ] = x * original->Width( ) / m_Width;
++		}
++
++		int lastSourceY = -1;
++		for( int y = 0; y < m_Height; y++ )
++		{
++			UINT32 *pDst = m_pData + y * m_Width;
++			int sourceY = y * original->Height( ) / m_Height;
++
++			if( sourceY == lastSourceY )
++			{
++				memcpy( pDst, pDst - m_Width, m_Width * sizeof( UINT32 ));
++				continue;
++			}
++
++			const UINT32 *pSrc = original->m_pData + sourceY * original->Width( );
++			for( int x = 0; x < m_Width; x++ )
++			{
++				pDst[ x ] = pSrc[ xMap[ x ]];
++			}
++			lastSourceY = sourceY;
++		}
+ 	}
+ 	else
+ 	{
+diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
+--- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 15:17:09
+@@ -0,0 +1,213 @@
++//----------------------------------------------------------------------------
++//
++// File:        keymap.cpp
++//
++// Description: Configurable host-key -> TI-99/4A action mapping
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//              File format, one entry per line:
++//
++//                  <SDL key name> = <action>      # comment
++//
++//              <SDL key name> is anything SDL_GetKeyFromName accepts (Space, Return,
++//              Left Ctrl, E, ...). <action> is one of:
++//
++//                  FIRE          joystick 1 fire button
++//                  RESET         reset the console
++//                  NONE          ignore the key
++//                  <key>         a TI key: A-Z, 0-9, ENTER, SPACE, COMMA, PERIOD,
++//                                SLASH, SEMICOLON, EQUALS
++//                  <mod>+<key>   <mod> is FCTN, SHIFT or CTRL (e.g. FCTN+9 is BACK)
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cctype>
++#include <cstdio>
++#include <fstream>
++#include <optional>
++#include <sstream>
++#include <string>
++#include "keymap.hpp"
++
++namespace
++{
++	// Matches the Miyoo Mini button layout (the physical button is in brackets) and
++	// starts from the layout the GPi Case/RG351P handheld patches use
++	const char DEFAULT_KEYMAP[ ] =
++		"Space      = FIRE          # [A]\n"
++		"Left Ctrl  = 1             # [B]\n"
++		"Left Shift = 2             # [X]\n"
++		"Left Alt   = 3             # [Y]\n"
++		"E          = FCTN+EQUALS   # [L1] QUIT\n"
++		"T          = FCTN+8        # [R1] REDO\n"
++		"Tab        = SPACE         # [L2]\n"
++		"Backspace  = FCTN+9        # [R2] BACK\n"
++		"Return     = ENTER         # [Start]\n"
++		"Right Ctrl = P             # [Select]\n";
++
++	std::string Trim( const std::string &text )
++	{
++		auto first = text.find_first_not_of( " \t\r\n" );
++		if( first == std::string::npos )
++		{
++			return "";
++		}
++		auto last = text.find_last_not_of( " \t\r\n" );
++		return text.substr( first, last - first + 1 );
++	}
++
++	std::string Upper( std::string text )
++	{
++		std::transform( text.begin( ), text.end( ), text.begin( ), []( unsigned char c ) { return std::toupper( c ); } );
++		return text;
++	}
++
++	std::optional<VIRTUAL_KEY_E> ParseKey( const std::string &name )
++	{
++		if( name.size( ) == 1 )
++		{
++			if( std::isalpha( static_cast<unsigned char>( name[ 0 ] )))
++			{
++				return static_cast<VIRTUAL_KEY_E>( VK_A + ( name[ 0 ] - 'A' ));
++			}
++			if( std::isdigit( static_cast<unsigned char>( name[ 0 ] )))
++			{
++				return static_cast<VIRTUAL_KEY_E>( VK_0 + ( name[ 0 ] - '0' ));
++			}
++		}
++
++		static const std::map<std::string,VIRTUAL_KEY_E> names =
++		{
++			{ "ENTER",     VK_ENTER     },
++			{ "SPACE",     VK_SPACE     },
++			{ "COMMA",     VK_COMMA     },
++			{ "PERIOD",    VK_PERIOD    },
++			{ "SLASH",     VK_DIVIDE    },
++			{ "SEMICOLON", VK_SEMICOLON },
++			{ "EQUALS",    VK_EQUALS    },
++			{ "FCTN",      VK_FCTN      },
++			{ "SHIFT",     VK_SHIFT     },
++			{ "CTRL",      VK_CTRL      }
++		};
++
++		auto it = names.find( name );
++		if( it == names.end( ))
++		{
++			return std::nullopt;
++		}
++		return it->second;
++	}
++
++	std::optional<sKeyAction> ParseAction( const std::string &text )
++	{
++		sKeyAction action;
++		auto name = Upper( text );
++
++		if( name == "FIRE" )
++		{
++			action.type = sKeyAction::FIRE;
++			return action;
++		}
++		if( name == "RESET" )
++		{
++			action.type = sKeyAction::RESET;
++			return action;
++		}
++		if( name == "NONE" )
++		{
++			return action;
++		}
++
++		auto plus = name.find( '+' );
++		if( plus == std::string::npos )
++		{
++			auto key = ParseKey( Trim( name ));
++			if( ! key )
++			{
++				return std::nullopt;
++			}
++			action.key1 = *key;
++			return action;
++		}
++
++		auto first  = ParseKey( Trim( name.substr( 0, plus )));
++		auto second = ParseKey( Trim( name.substr( plus + 1 )));
++		if( ! first || ! second )
++		{
++			return std::nullopt;
++		}
++		action.key1 = *first;
++		action.key2 = *second;
++		return action;
++	}
++}
++
++cKeyMap::cKeyMap( )
++{
++	std::istringstream defaults( DEFAULT_KEYMAP );
++	Parse( defaults, "built-in keymap" );
++}
++
++void cKeyMap::Load( const std::filesystem::path &file )
++{
++	std::ifstream stream( file );
++	if( stream.is_open( ))
++	{
++		Parse( stream, file.c_str( ));
++	}
++}
++
++const sKeyAction *cKeyMap::Find( SDL_Keycode key ) const
++{
++	auto it = m_Actions.find( key );
++	return ( it == m_Actions.end( )) ? nullptr : &it->second;
++}
++
++void cKeyMap::Parse( std::istream &stream, const char *source )
++{
++	std::string line;
++	int number = 0;
++
++	while( std::getline( stream, line ))
++	{
++		number++;
++
++		auto comment = line.find( '#' );
++		if( comment != std::string::npos )
++		{
++			line.erase( comment );
++		}
++
++		line = Trim( line );
++		if( line.empty( ))
++		{
++			continue;
++		}
++
++		auto equals = line.find( '=' );
++		if( equals == std::string::npos )
++		{
++			fprintf( stderr, "%s:%d: expected '<key> = <action>'\n", source, number );
++			continue;
++		}
++
++		auto keyName = Trim( line.substr( 0, equals ));
++		auto key = SDL_GetKeyFromName( keyName.c_str( ));
++		if( key == SDLK_UNKNOWN )
++		{
++			fprintf( stderr, "%s:%d: unknown key name '%s'\n", source, number, keyName.c_str( ));
++			continue;
++		}
++
++		auto action = ParseAction( Trim( line.substr( equals + 1 )));
++		if( ! action )
++		{
++			fprintf( stderr, "%s:%d: unknown action '%s'\n", source, number, Trim( line.substr( equals + 1 )).c_str( ));
++			continue;
++		}
++
++		m_Actions[ key ] = *action;
++	}
++}
+diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
+--- a/ti99sim/src/sdl/main.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/main.cpp	2026-10-29 15:17:09
+@@ -44,6 +44,8 @@
+ #include "support.hpp"
+ #include "option.hpp"
+ 
++#include <cstring>
++
+ DBG_REGISTER( __FILE__ );
+ 
+ static sRGBQUAD ColorTable[ 3 ][ 17 ] =
+diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
+--- a/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 15:17:09
+@@ -61,6 +61,10 @@
+ {
+ 	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
+ 
++	// Optional overrides for the built-in button layout: CWD first, then the install dir
++	m_KeyMap.Load( GetCommonPath( ) / "keymap.ini" );
++	m_KeyMap.Load( "keymap.ini" );
++
+ 	m_SleepSem = SDL_CreateSemaphore( 0 );
+ 	m_WaitSem  = SDL_CreateSemaphore( 0 );
+ 
+@@ -168,6 +172,9 @@
+ 
+ 	int joystick;
+ 
++	// Set TI_LOG_KEYS=1 to print the name of every key press (to find out what a handheld's buttons send)
++	const bool logKeys = getenv( "TI_LOG_KEYS" ) != nullptr;
++
+ 	iTMS9901 *pic = m_PIC;
+ 	cSdlTMS9918A *vdp = dynamic_cast<cSdlTMS9918A *>( m_VDP.get( ));
+ 
+@@ -401,10 +408,22 @@
+ 						}
+ 					}
+ 				}
++				if( logKeys )
++				{
++					fprintf( stderr, "key: %s (sym %d, scancode %d)\n", SDL_GetKeyName( event.key.keysym.sym ), event.key.keysym.sym, event.key.keysym.scancode );
++				}
+ 				if( event.key.keysym.sym == SDLK_ESCAPE )
+ 				{
+ 					goto done;
+ 				}
++				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
++				{
++					if( event.key.repeat == 0 )
++					{
++						ApplyKeyAction( *action, event.key.keysym.scancode, true );
++					}
++					break;
++				}
+ 				if(( SDL_GetModState( ) & KMOD_CTRL ) != 0 )
+ 				{
+ 					switch( event.key.keysym.sym )
+@@ -455,7 +474,14 @@
+ 				}
+ 				break;
+ 			case SDL_KEYUP :
+-				KeyReleased( event.key.keysym );
++				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
++				{
++					ApplyKeyAction( *action, event.key.keysym.scancode, false );
++				}
++				else
++				{
++					KeyReleased( event.key.keysym );
++				}
+ 				m_ActiveKeycode[ event.key.keysym.scancode ] = SDLK_UNKNOWN;
+ 				break;
+ 			case SDL_QUIT :
+@@ -646,6 +672,38 @@
+ 		case SDLK_UP    :
+ 		case SDLK_KP_8  : pic->SetJoystickY( 0,  1 );			break;
+ 		default : ;
++	}
++}
++
++void cSdlTI994A::ApplyKeyAction( const sKeyAction &action, int scancode, bool down )
++{
++	iTMS9901 *pic = m_PIC;
++
++	switch( action.type )
++	{
++		case sKeyAction::FIRE :
++			pic->SetJoystickButton( 0, down );
++			break;
++		case sKeyAction::RESET :
++			if( down )
++			{
++				Reset( );
++			}
++			break;
++		case sKeyAction::KEYS :
++			if( action.key1 == VK_NONE )
++			{
++				break;
++			}
++			if( down )
++			{
++				pic->VKeysDown( scancode, action.key1, action.key2 );
++			}
++			else
++			{
++				pic->VKeyUp( scancode );
++			}
++			break;
+ 	}
+ }
+ 
+diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
+--- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 15:17:09
+@@ -37,6 +37,15 @@
+ 
+ DBG_REGISTER( __FILE__ );
+ 
++// TI_SOFT_SCALE=<w>x<h> makes the emulator scale the picture to that size itself (nearest-neighbour).
++// Needed where the display's own scaler blurs the image, e.g. the Miyoo Mini's SDL2 port.
++static bool GetSoftScaleSize( int &width, int &height )
++{
++	const char *size = getenv( "TI_SOFT_SCALE" );
++
++	return ( size != nullptr ) && ( sscanf( size, "%dx%d", &width, &height ) == 2 ) && ( width >= VDP_WIDTH ) && ( height >= VDP_HEIGHT );
++}
++
+ cSdlTMS9918A::cSdlTMS9918A( sRGBQUAD colorTable[ 17 ], int refreshRate, bool useScale2x, bool fullScreen, int scale ) :
+ 	cBaseObject( "cSdlTMS9918A" ),
+ 	cTMS9918A( refreshRate ),
+@@ -89,8 +98,15 @@
+ 
+ 	int sdlScale = useScale2x ? std::max( std::min( scale / 2, 3 ), 2 ) : 1;
+ 
+-	if( sdlScale > 1 )
++	int softWidth = 0, softHeight = 0;
++
++	if( GetSoftScaleSize( softWidth, softHeight ))
+ 	{
++		// Scale in software (nearest-neighbour) to the exact output size, so the display needs no scaling of its own
++		m_ScaledScreen = new cBitMap( softWidth, softHeight, false );
++	}
++	else if( sdlScale > 1 )
++	{
+ 		m_ScaledScreen = new cBitMap( VDP_WIDTH * sdlScale, VDP_HEIGHT * sdlScale, true );
+ 	}
+ 
+@@ -459,20 +475,59 @@
+ 
+ 	if( m_sdlWindow == nullptr )
+ 	{
+-		SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "closest" );
++		// TI_INTEGER_SCALE=0 lets the picture scale to fill the display (e.g. 640x480 handhelds)
++		// TI_SCALE_FILTER=linear smooths the uneven pixel widths that come with non-integer scaling
++		const char *integerScale = getenv( "TI_INTEGER_SCALE" );
++		const char *scaleFilter  = getenv( "TI_SCALE_FILTER" );
+ 
+-		width = std::max( width, VDP_WIDTH * scale );
+-		height = std::max( height, VDP_HEIGHT * scale );
++		SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, scaleFilter ? scaleFilter : "closest" );
+ 
++		// The texture is the size of the bitmap we hand to SDL (the software-scaled one, if TI_SOFT_SCALE is set)
++		int textureW = VDP_WIDTH * scale;
++		int textureH = VDP_HEIGHT * scale;
++		GetSoftScaleSize( textureW, textureH );
++
++		width = std::max( width, textureW );
++		height = std::max( height, textureH );
++
++		// TI_WINDOW_SIZE=<w>x<h> overrides the window size. The Miyoo Mini's SDL2 renderer draws a window at a
++		// whole-number multiple of its size and centres it, so a window the size of the display (640x480)
++		// is the only way to fill the screen; the renderer then scales the picture up to fit it.
++		if( const char *windowSize = getenv( "TI_WINDOW_SIZE" ))
++		{
++			int w = 0, h = 0;
++			if(( sscanf( windowSize, "%dx%d", &w, &h ) == 2 ) && ( w > 0 ) && ( h > 0 ))
++			{
++				width = std::max( width, w );
++				height = std::max( height, h );
++			}
++		}
++
+ 		m_sdlWindow = SDL_CreateWindow( "TI-99/sim", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+ 								  width, height, SDL_WINDOW_RESIZABLE );
+ 
+ 		m_sdlRenderer = SDL_CreateRenderer( m_sdlWindow, -1, SDL_RENDERER_PRESENTVSYNC );
+ 
+-		SDL_RenderSetLogicalSize( m_sdlRenderer, VDP_WIDTH * scale, VDP_HEIGHT * scale );
+-		SDL_RenderSetIntegerScale( m_sdlRenderer, SDL_TRUE );
++		SDL_RenderSetLogicalSize( m_sdlRenderer, textureW, textureH );
++		SDL_RenderSetIntegerScale( m_sdlRenderer, ( integerScale && ( integerScale[ 0 ] == '0' )) ? SDL_FALSE : SDL_TRUE );
+ 
+-		m_sdlTexture = SDL_CreateTexture( m_sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, VDP_WIDTH * scale, VDP_HEIGHT * scale );
++		m_sdlTexture = SDL_CreateTexture( m_sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, textureW, textureH );
++
++		// One line of display geometry, to make scaling problems on odd SDL ports diagnosable from the log
++		{
++			int windowW = 0, windowH = 0, outputW = 0, outputH = 0, logicalW = 0, logicalH = 0;
++			SDL_Rect viewport{ };
++			SDL_RendererInfo info{ };
++			SDL_GetWindowSize( m_sdlWindow, &windowW, &windowH );
++			SDL_GetRendererOutputSize( m_sdlRenderer, &outputW, &outputH );
++			SDL_RenderGetLogicalSize( m_sdlRenderer, &logicalW, &logicalH );
++			SDL_RenderGetViewport( m_sdlRenderer, &viewport );
++			SDL_GetRendererInfo( m_sdlRenderer, &info );
++			fprintf( stderr, "display: texture %dx%d, requested %dx%d, window %dx%d, output %dx%d, logical %dx%d, viewport %d,%d %dx%d, integer=%d, renderer=%s, TI_INTEGER_SCALE=%s\n",
++				textureW, textureH, width, height, windowW, windowH, outputW, outputH, logicalW, logicalH,
++				viewport.x, viewport.y, viewport.w, viewport.h,
++				SDL_RenderGetIntegerScale( m_sdlRenderer ) ? 1 : 0, info.name ? info.name : "?", integerScale ? integerScale : "(unset)" );
++		}
+ 
+ 		m_FullScreen = false;
+ 	}
+diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
+--- a/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 15:17:09
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 15:17:09
+@@ -89,6 +89,17 @@
+ 	int ratio   = 44100 / sampleFreq;
+ 	int samples = DEFAULT_SAMPLES / ratio;
+ 
++	// TI_AUDIO_SAMPLES=<n> overrides the audio buffer size. Smaller buffers mean less delay between a sound
++	// being triggered and heard, at the risk of crackling; the Miyoo Mini's audio driver queues several buffers.
++	if( const char *override = getenv( "TI_AUDIO_SAMPLES" ))
++	{
++		int requested = atoi( override );
++		if(( requested >= 32 ) && ( requested <= 8192 ))
++		{
++			samples = requested;
++		}
++	}
++
+ 	// Set the audio format
+ 	wanted.freq     = sampleFreq;
+ 	wanted.format   = AUDIO_S16SYS;
+@@ -106,6 +117,9 @@
+ 	{
+ 		DBG_TRACE( "Using " << (( m_AudioSpec.format & 0x8000 ) ? "signed " : "unsigned " ) << ( m_AudioSpec.format & 0x00FF ) << "-bit " << m_AudioSpec.freq << "Hz Audio" );
+ 		DBG_TRACE( "Buffer size: " << m_AudioSpec.samples );
++		fprintf( stderr, "audio: driver=%s, wanted %d Hz %d samples, got %d Hz %d samples (%.1f ms per buffer)\n",
++			SDL_GetCurrentAudioDriver( ) ? SDL_GetCurrentAudioDriver( ) : "?", wanted.freq, wanted.samples,
++			m_AudioSpec.freq, m_AudioSpec.samples, 1000.0 * m_AudioSpec.samples / m_AudioSpec.freq );
+ 		m_Initialized = true;
+ 		m_MixBuffer   = new INT16 [ m_AudioSpec.samples ];
+ 		memset( m_MixBuffer, m_AudioSpec.silence, sizeof( INT16 ) * m_AudioSpec.samples );

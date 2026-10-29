@@ -19,7 +19,8 @@ each button sends.
 ## What to know before you change things
 
 - **Where the code is:** the emulator is vendored under `ti99sim/` and is ordinary source; edit it in place. Match the
-  surrounding style (tabs, spaces inside parentheses, naming).
+  surrounding style (tabs, spaces inside parentheses, naming). All changes made relative to upstream commit `e360854` are
+  tracked in [`upstream-modifications.patch`](upstream-modifications.patch).
 - **The Miyoo's SDL2 port is unusual** (see "How it works" in the README). Features that look like they should work
   (SDL scale hints, desktop fullscreen, integer-scale flags) often do not on its renderer, so verify on a device, and
   say in your pull request what you tested it on.

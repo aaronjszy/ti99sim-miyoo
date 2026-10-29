@@ -29,3 +29,6 @@
 
 # Local run output
 *.log
+
+# Track upstream modifications patch even if global ignore excludes *.patch
+!/upstream-modifications.patch

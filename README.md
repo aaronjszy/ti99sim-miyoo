@@ -108,7 +108,8 @@ Why the build looks the way it does, since the Miyoo's SDL2 port is unusual:
 
 The changes to TI-99/Sim itself are small and live in `ti99sim/` as ordinary source: the configurable key map
 (`src/sdl/keymap.cpp`), the software scaler and display options (`src/sdl/bitmap.cpp`, `tms9918a-sdl.cpp`), the
-audio override (`tms9919-sdl.cpp`), and the built-in SHA-1 (`src/core/support.cpp`).
+audio override (`tms9919-sdl.cpp`), and the built-in SHA-1 (`src/core/support.cpp`). A complete diff against upstream
+commit `e360854` is kept in [`upstream-modifications.patch`](upstream-modifications.patch).
 
 ## Building and hacking
 
@@ -127,11 +128,12 @@ device. Edit anything under `ti99sim/`, run `make build`, and copy `build/ti99si
 to try it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
-Makefile                 build, package, install targets
-scripts/                 fetch-deps, build-in-container, package, install
-deps/SHA256SUMS          pinned checksums for the downloaded libraries
-miyoo/SDCARD/            hand-written files that go on the card (launchers, configs, keymap)
-ti99sim/                 vendored TI-99/Sim source, with the Miyoo changes
+Makefile                      build, package, install targets
+scripts/                      fetch-deps, build-in-container, package, install
+deps/SHA256SUMS               pinned checksums for the downloaded libraries
+miyoo/SDCARD/                 hand-written files that go on the card (launchers, configs, keymap)
+ti99sim/                      vendored TI-99/Sim source, with the Miyoo changes
+upstream-modifications.patch  diff of all changes against upstream commit e360854
 ```
 
 ## Help wanted
@@ -146,8 +148,9 @@ ti99sim/                 vendored TI-99/Sim source, with the Miyoo changes
 ## Credits and licences
 
 - **TI-99/Sim** © Marc Rousseau, [mrousseau.org](https://www.mrousseau.org/programs/ti99sim/). The SDL2 handheld fork by
-  [christianhaitian](https://github.com/christianhaitian/ti99sim) (commit `e360854`) is the base of `ti99sim/`; one
-  upstream file, the third-party CF7+ firmware image `roms/cf7a+.bin`, is deliberately not included.
+  [christianhaitian](https://github.com/christianhaitian/ti99sim) (commit `e360854`) is the base of `ti99sim/`; all modifications
+  are documented in [`upstream-modifications.patch`](upstream-modifications.patch). One upstream file, the third-party CF7+
+  firmware image `roms/cf7a+.bin`, is deliberately not included.
 - The Miyoo Mini **SDL2 port** is by [steward-fu](https://github.com/steward-fu/sdl2) (LGPL-2.1). It is downloaded, not
   stored in this repository, but the packages `make zip` and `make install` produce include its libraries.
 - The cross-compile **toolchain image** comes from the [Onion OS](https://github.com/OnionUI/Onion) project.
