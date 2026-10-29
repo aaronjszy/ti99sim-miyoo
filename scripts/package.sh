@@ -5,7 +5,7 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$ROOT/dist/SDCARD
-APP=$OUT/App/TI99Sim
+APP=$OUT/Emu/TI99
 
 [ -f "$ROOT/build/ti99sim-sdl" ] || { echo "package: build/ti99sim-sdl is missing; run 'make build'" >&2; exit 1; }
 [ -d "$ROOT/deps/lib" ]          || { echo "package: deps/lib is missing; run 'make deps'" >&2; exit 1; }
@@ -16,7 +16,7 @@ cp -R "$ROOT/miyoo/SDCARD/." "$OUT/"
 
 cp "$ROOT/build/ti99sim-sdl" "$APP/"
 cp "$ROOT"/deps/lib/* "$APP/"
-chmod +x "$APP/ti99sim-sdl" "$APP/launch.sh" "$OUT/Emu/TI99/launch.sh"
+chmod +x "$APP/ti99sim-sdl" "$APP/launch.sh"
 
 # Folders the emulator and Onion's Games menu look in; the TI ROMs themselves are not included (see README.md)
 mkdir -p "$APP/console" "$APP/cartridges" "$APP/disks" "$OUT/Roms/TI99"
