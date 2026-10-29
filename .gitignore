@@ -3,6 +3,8 @@
 
 # Local only files
 /.local/
+/agents.md
+/AGENTS.md
 
 # Build and packaging output (make build / make package / make zip)
 /build/
