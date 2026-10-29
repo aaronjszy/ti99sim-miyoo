@@ -19,7 +19,7 @@ cp "$ROOT"/deps/lib/* "$APP/"
 chmod +x "$APP/ti99sim-sdl" "$APP/launch.sh"
 
 # Folders the emulator and Onion's Games menu look in; the TI ROMs themselves are not included (see README.md)
-mkdir -p "$APP/console" "$APP/cartridges" "$APP/disks" "$OUT/Roms/TI99"
+mkdir -p "$APP/console" "$APP/disks" "$OUT/Roms/TI99"
 cat > "$APP/console/README.txt" <<'EOF'
 Put the TI-99/4A console ROM cartridge here as TI-994A.ctg (see the project README, "TI ROMs").
 Optional: ti-disk.ctg (disk controller) and spchrom.bin (speech ROM).

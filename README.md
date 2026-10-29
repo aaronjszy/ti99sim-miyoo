@@ -33,13 +33,13 @@ its own `.ctg` cartridge format:
 |---|---|---|
 | `TI-994A.ctg` (console ROM + GROMs) | `Emu/TI99/console/` | **Yes** |
 | `ti-disk.ctg` (disk controller), `spchrom.bin` (speech) | `Emu/TI99/console/` | Optional |
-| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) or `Emu/TI99/cartridges/` | For games |
+| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) | For games |
 
 How to create `.ctg` files from ROM dumps you legally own is covered by TI-99/Sim's own documentation
 ([`ti99sim/doc/README.html`](ti99sim/doc/README.html), the `convert-ctg` and `mkcart` tools). The upstream
 [`ti99sim/scripts/setup`](ti99sim/scripts/setup) shows the whole procedure but is written for a Linux desktop. A
 containerised helper that does this for you would be a good contribution (see [Help wanted](#help-wanted)).
-If you already have a working TI-99/Sim installation, copy its `console/` and `cartridges/` files across.
+If you already have a working TI-99/Sim installation, copy its `console/` files to `Emu/TI99/console/` and its `cartridges/` files to `Roms/TI99/`.
 
 ## Controls
 
