@@ -27,7 +27,7 @@ package: build
 	@scripts/package.sh
 
 zip: package
-	@cd dist && rm -f ti99sim-miyoo.zip && zip -qr ti99sim-miyoo.zip SDCARD && echo "zip: dist/ti99sim-miyoo.zip"
+	@cd dist/SDCARD && rm -f ../ti99sim-miyoo.zip && zip -qr ../ti99sim-miyoo.zip . && echo "zip: dist/ti99sim-miyoo.zip"
 
 install: package
 	@test -n "$(SDCARD)" || { echo "usage: make install SDCARD=/path/to/mounted/sdcard"; exit 1; }

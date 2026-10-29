@@ -18,7 +18,7 @@ cd ti99sim-miyoo
 make install SDCARD=/path/to/mounted/sd-card     # builds, packages, and copies onto the card
 ```
 
-No SD card handy? `make zip` produces `dist/ti99sim-miyoo.zip`; unzip its `SDCARD/` contents onto the card.
+No SD card handy? `make zip` produces `dist/ti99sim-miyoo.zip`; extract it directly onto the root of the card (e.g. `unzip dist/ti99sim-miyoo.zip -d /path/to/sd-card`).
 The first build downloads a few MB of dependencies and the Onion toolchain image, then compiles (a few minutes).
 
 Then add the TI ROMs (next section), eject the card, and on the Miyoo open **Apps → TI99Sim** or
