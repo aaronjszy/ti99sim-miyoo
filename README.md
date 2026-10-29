@@ -40,7 +40,6 @@ How to create `.ctg` files from ROM dumps of cartridges you legally own is cover
 ([`ti99sim/doc/README.html`](ti99sim/doc/README.html), the `convert-ctg` and `mkcart` tools). The upstream
 [`ti99sim/scripts/setup`](ti99sim/scripts/setup) shows the whole procedure but is written for a Linux desktop. A
 containerised helper that does this for you would be a good contribution (see [Help wanted](#help-wanted)).
-If you already have a working TI-99/Sim installation, copy its `console/` files to `Emu/TI99/console/` and its `cartridges/` files to `Roms/TI99/`.
 
 ## Controls
 
@@ -137,14 +136,15 @@ ti99sim/                      vendored TI-99/Sim source, with the Miyoo changes
 upstream-modifications.patch  diff of all changes against upstream commit e360854
 ```
 
-## Help wanted
+## TODO / Help wanted
 
+- Add a TI99 Icon
 - Test on other hardware and firmware (Miyoo Mini Plus, other Onion versions) and with more cartridges.
-- An on-screen keyboard, so TI BASIC and typing games are usable.
+- More carefully thought out and widely applicable button mappings
 - Onion integration for the Menu button: autosave on exit and resume on launch.
 - Lower audio latency, which probably means patching and rebuilding the SDL2 port's audio driver.
-- A containerised helper (`make roms`) that turns ROM dumps you provide into `.ctg` files.
 - Release builds (GitHub Actions) so people can download a ready-made zip.
+- See if we can setup ti99sim as a proper RetroArch core
 
 ## Credits and licences
 
