@@ -12,8 +12,8 @@ make build            # cross-compile -> build/ti99sim-sdl
 make package          # dist/SDCARD, a tree mirroring the SD card
 ```
 
-To try a change on a device: copy `build/ti99sim-sdl` over `App/TI99Sim/ti99sim-sdl` on the card (or `make install
-SDCARD=...`), launch it, then read `App/TI99Sim/ti99sim.log`. Add `export TI_LOG_KEYS=1` to `launch.sh` to see what
+To try a change on a device: copy `build/ti99sim-sdl` over `Emu/TI99/ti99sim-sdl` on the card (or `make install
+SDCARD=...`), launch it, then read `Emu/TI99/ti99sim.log`. Add `export TI_LOG_KEYS=1` to `launch.sh` to see what
 each button sends.
 
 ## What to know before you change things

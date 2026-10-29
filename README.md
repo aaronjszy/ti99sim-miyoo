@@ -31,9 +31,9 @@ its own `.ctg` cartridge format:
 
 | Put this on the card | Where | Needed? |
 |---|---|---|
-| `TI-994A.ctg` (console ROM + GROMs) | `App/TI99Sim/console/` | **Yes** |
-| `ti-disk.ctg` (disk controller), `spchrom.bin` (speech) | `App/TI99Sim/console/` | Optional |
-| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) or `App/TI99Sim/cartridges/` | For games |
+| `TI-994A.ctg` (console ROM + GROMs) | `Emu/TI99/console/` | **Yes** |
+| `ti-disk.ctg` (disk controller), `spchrom.bin` (speech) | `Emu/TI99/console/` | Optional |
+| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) or `Emu/TI99/cartridges/` | For games |
 
 How to create `.ctg` files from ROM dumps you legally own is covered by TI-99/Sim's own documentation
 ([`ti99sim/doc/README.html`](ti99sim/doc/README.html), the `convert-ctg` and `mkcart` tools). The upstream
@@ -63,7 +63,7 @@ There is no on-screen keyboard yet, so programs that need typing (TI BASIC, for 
 
 ## Configuration
 
-Everything is plain text files on the card, in `App/TI99Sim/`; no rebuild is needed.
+Everything is plain text files on the card, in `Emu/TI99/`; no rebuild is needed.
 
 **`keymap.ini`** maps buttons to TI keys, one `<SDL key name> = <action>` per line. Actions are `FIRE`, `RESET`,
 `NONE`, or a TI key (`A`-`Z`, `0`-`9`, `ENTER`, `SPACE`, `COMMA`, `PERIOD`, `SLASH`, `SEMICOLON`, `EQUALS`),
@@ -123,7 +123,7 @@ make clean      # remove build output (distclean also removes deps/)
 
 The toolchain image and every downloaded file are pinned (image by digest, libraries by SHA-256), so builds are
 repeatable: a clean build of this repository produced a byte-identical binary to the one that was tested on the
-device. Edit anything under `ti99sim/`, run `make build`, and copy `build/ti99sim-sdl` to `App/TI99Sim/` on the card
+device. Edit anything under `ti99sim/`, run `make build`, and copy `build/ti99sim-sdl` to `Emu/TI99/` on the card
 to try it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
