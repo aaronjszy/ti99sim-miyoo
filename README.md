@@ -91,7 +91,6 @@ goes wrong. Each run starts with `display:` and `audio:` lines showing what the 
 - **Menu quits** the emulator. Onion's freeze-and-switch behaviour only exists for RetroArch (and DraStic), so it is not
   available here, and TI-99/Sim's own save-state keys (F2/F3) are not mapped to any button.
 - **Uneven pixel widths:** at 2.5× scaling some pixel columns and rows are 3 px wide and others 2 px.
-- **No Games-menu icon** is set (`Emu/TI99/config.json` has `"icon": ""`); how Onion renders that is untested.
 - **No on-screen keyboard**, see above.
 
 ## How it works
@@ -138,7 +137,6 @@ upstream-modifications.patch  diff of all changes against upstream commit e36085
 
 ## TODO / Help wanted
 
-- Add a TI99 Icon
 - Test on other hardware and firmware (Miyoo Mini Plus, other Onion versions) and with more cartridges.
 - More carefully thought out and widely applicable button mappings
 - Onion integration for the Menu button: autosave on exit and resume on launch.
@@ -154,6 +152,9 @@ upstream-modifications.patch  diff of all changes against upstream commit e36085
   firmware image `roms/cf7a+.bin`, is deliberately not included.
 - The Miyoo Mini **SDL2 port** is by [steward-fu](https://github.com/steward-fu/sdl2) (LGPL-2.1). It is downloaded, not
   stored in this repository, but the packages `make zip` and `make install` produce include its libraries.
+- The **TI-99/4A menu icon** is derived from a photograph of the console by Rama & Musée Bolo
+  ([Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Texas_Instruments_TI-99-4A_(transparent_bg).png)),
+  licensed under [CC BY-SA 2.0 FR](https://creativecommons.org/licenses/by-sa/2.0/fr/deed.en).
 - The cross-compile **toolchain image** comes from the [Onion OS](https://github.com/OnionUI/Onion) project.
 - This project's own code, scripts and docs are under the **GNU GPL, version 2 or (at your option) any later version**;
   see [`LICENSE`](LICENSE). Every TI-99/Sim source file carries that same notice. (Upstream's `ti99sim/doc/COPYING` is
