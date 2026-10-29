@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# Local only files
+/.local/
+
 # Build and packaging output (make build / make package / make zip)
 /build/
 /dist/
