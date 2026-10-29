@@ -24,18 +24,19 @@ The first build downloads a few MB of dependencies and the Onion toolchain image
 Then add the TI ROMs (next section), eject the card, and on the Miyoo open **Apps → TI99Sim** or
 **Games → TI-99/4A** (reboot once if the Games entry does not appear).
 
-## TI ROMs (not included)
+## TI ROMs and Cartridges (not included)
 
-The emulator needs the TI-99/4A console ROM, which is copyrighted and **not distributed here**. ti99sim stores ROMs in
-its own `.ctg` cartridge format:
+This emulator does not include, distribute, or link to any copyrighted console ROMs, system software, or game cartridges.
+To use this emulator, you must supply your own ROM and cartridge images dumped from physical hardware and cartridges you
+legally own. ti99sim stores ROMs and cartridges in its own `.ctg` format:
 
 | Put this on the card | Where | Needed? |
 |---|---|---|
-| `TI-994A.ctg` (console ROM + GROMs) | `Emu/TI99/console/` | **Yes** |
+| `TI-994A.ctg` (console ROM + GROMs) | `Emu/TI99/console/` | **Yes** (dumped from your console) |
 | `ti-disk.ctg` (disk controller), `spchrom.bin` (speech) | `Emu/TI99/console/` | Optional |
-| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) | For games |
+| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) | For games (dumped from your cartridges) |
 
-How to create `.ctg` files from ROM dumps you legally own is covered by TI-99/Sim's own documentation
+How to create `.ctg` files from ROM dumps of cartridges you legally own is covered by TI-99/Sim's own documentation
 ([`ti99sim/doc/README.html`](ti99sim/doc/README.html), the `convert-ctg` and `mkcart` tools). The upstream
 [`ti99sim/scripts/setup`](ti99sim/scripts/setup) shows the whole procedure but is written for a Linux desktop. A
 containerised helper that does this for you would be a good contribution (see [Help wanted](#help-wanted)).
@@ -157,4 +158,6 @@ upstream-modifications.patch  diff of all changes against upstream commit e36085
 - This project's own code, scripts and docs are under the **GNU GPL, version 2 or (at your option) any later version**;
   see [`LICENSE`](LICENSE). Every TI-99/Sim source file carries that same notice. (Upstream's `ti99sim/doc/COPYING` is
   the text of the *Library* GPL, which does not match the file headers; it is left as shipped.)
-- Texas Instruments, TI-99/4A and related names belong to their owners. No TI ROMs or software are included.
+- **Trademarks & Non-Affiliation:** Texas Instruments, TI-99/4A, and related names and trademarks belong to
+  Texas Instruments Incorporated. This project is an independent open-source emulator port and is not affiliated
+  with, endorsed by, or sponsored by Texas Instruments or any software publishers. No TI ROMs or software are included.

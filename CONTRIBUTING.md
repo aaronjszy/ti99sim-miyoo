@@ -24,8 +24,9 @@ each button sends.
 - **The Miyoo's SDL2 port is unusual** (see "How it works" in the README). Features that look like they should work
   (SDL scale hints, desktop fullscreen, integer-scale flags) often do not on its renderer, so verify on a device, and
   say in your pull request what you tested it on.
-- **Never commit TI ROMs, cartridges or disk images.** They are copyrighted; `.gitignore` excludes `*.ctg`. Do not
-  link to places that host them.
+- **Never commit, host, or link to copyrighted files.** Do not commit TI console ROMs, GROMs, cartridges (`*.ctg`),
+  or disk images; `.gitignore` excludes `*.ctg`. Do not post links to ROM-sharing sites or unauthorized downloads in
+  issues, pull requests, or commit messages.
 - **Do not commit build output or downloaded binaries.** If a library is needed, pin it by URL and SHA-256 in
   `scripts/fetch-deps.sh` and `deps/SHA256SUMS`, as the existing ones are.
 - **Licence:** contributions are under GPL-2.0-or-later like the rest of the project. New source files should carry
