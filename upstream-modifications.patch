@@ -1,6 +1,6 @@
 diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
---- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/include/keymap.hpp	2026-10-29 15:17:09
+--- a/ti99sim/include/keymap.hpp	2026-10-29 17:46:11
++++ b/ti99sim/include/keymap.hpp	2026-10-29 17:46:16
 @@ -0,0 +1,47 @@
 +//----------------------------------------------------------------------------
 +//
@@ -24,7 +24,7 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +
 +struct sKeyAction
 +{
-+	enum TYPE { KEYS, FIRE, RESET };
++	enum TYPE { KEYS, FIRE, RESET, SAVE, LOAD };
 +
 +	TYPE          type{ KEYS };
 +	VIRTUAL_KEY_E key1{ VK_NONE };		// VK_NONE for both keys == ignore the host key
@@ -50,8 +50,8 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +
 +#endif
 diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
---- a/ti99sim/include/ti994a-sdl.hpp	2026-10-29 15:17:09
-+++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 15:17:09
+--- a/ti99sim/include/ti994a-sdl.hpp	2026-10-29 17:46:11
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 17:46:16
 @@ -31,6 +31,7 @@
  
  #include <atomic>
@@ -60,16 +60,31 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  
  struct SDL_Thread;
  
-@@ -53,6 +54,8 @@
+@@ -52,7 +53,12 @@
+ 	int                 m_JoystickPosY[ 2 ];
  
  	SDL_Keycode         m_ActiveKeycode[ SDL_NUM_SCANCODES ];
++	bool                m_MenuHeld{ false };
++	bool                m_MenuChorded{ false };
++	bool                m_SwallowedScancodes[ SDL_NUM_SCANCODES ]{ false };
  
 +	cKeyMap             m_KeyMap;
 +
  public:
  
  	cSdlTI994A( iCartridge *, iTMS9918A * = nullptr, iTMS9919 * = nullptr, iTMS5220 * = nullptr );
-@@ -73,6 +76,7 @@
+@@ -65,6 +71,10 @@
+ 	virtual bool SaveImage( const char * ) override;
+ 	virtual bool LoadImage( const char * ) override;
+ 
++	bool SaveCurrentState( );
++	bool LoadCurrentState( );
++	std::string GetSaveFileName( ) const;
++
+ 	void SetJoystick( int, SDL_Joystick * );
+ 
+ protected:
+@@ -73,6 +83,7 @@
  
  	void KeyPressed( SDL_Keysym keysym );
  	void KeyReleased( SDL_Keysym keysym );
@@ -77,10 +92,9 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  
  	void StartThread( );
  	void StopThread( );
-Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
 diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
---- a/ti99sim/src/core/support.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/core/support.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/core/support.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/core/support.cpp	2026-10-29 17:46:16
 @@ -416,7 +416,96 @@
  	return sha1.Digest( );
  }
@@ -180,8 +194,8 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  	#include <openssl/sha.h>
  
 diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
---- a/ti99sim/src/sdl/Makefile	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/Makefile	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/Makefile	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/Makefile	2026-10-29 17:46:16
 @@ -9,7 +9,9 @@
  
  XLIBS	+= -lpthread
@@ -201,8 +215,8 @@ diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
  FILES	+= tms9918a-sdl.cpp
  FILES	+= ti994a-sdl.cpp
 diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
---- a/ti99sim/src/sdl/bitmap.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/bitmap.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 17:46:16
 @@ -28,6 +28,7 @@
  
  #include <algorithm>
@@ -248,9 +262,9 @@ diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
  	else
  	{
 diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
---- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 15:17:09
-@@ -0,0 +1,213 @@
+--- a/ti99sim/src/sdl/keymap.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 17:46:16
+@@ -0,0 +1,222 @@
 +//----------------------------------------------------------------------------
 +//
 +// File:        keymap.cpp
@@ -286,17 +300,16 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +
 +namespace
 +{
-+	// Matches the Miyoo Mini button layout (the physical button is in brackets) and
-+	// starts from the layout the GPi Case/RG351P handheld patches use
++	// Matches the Miyoo Mini button layout (the physical button is in brackets)
 +	const char DEFAULT_KEYMAP[ ] =
 +		"Space      = FIRE          # [A]\n"
 +		"Left Ctrl  = 1             # [B]\n"
 +		"Left Shift = 2             # [X]\n"
-+		"Left Alt   = 3             # [Y]\n"
-+		"E          = FCTN+EQUALS   # [L1] QUIT\n"
-+		"T          = FCTN+8        # [R1] REDO\n"
-+		"Tab        = SPACE         # [L2]\n"
-+		"Backspace  = FCTN+9        # [R2] BACK\n"
++		"Left Alt   = Y             # [Y]\n"
++		"E          = SPACE         # [L1]\n"
++		"T          = N             # [R1]\n"
++		"Tab        = FCTN+9        # [L2] BACK\n"
++		"Backspace  = FCTN+8        # [R2] REDO\n"
 +		"Return     = ENTER         # [Start]\n"
 +		"Right Ctrl = P             # [Select]\n";
 +
@@ -366,6 +379,16 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +		if( name == "RESET" )
 +		{
 +			action.type = sKeyAction::RESET;
++			return action;
++		}
++		if( name == "SAVE" )
++		{
++			action.type = sKeyAction::SAVE;
++			return action;
++		}
++		if( name == "LOAD" )
++		{
++			action.type = sKeyAction::LOAD;
 +			return action;
 +		}
 +		if( name == "NONE" )
@@ -465,8 +488,8 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +	}
 +}
 diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
---- a/ti99sim/src/sdl/main.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/main.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/main.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/main.cpp	2026-10-29 17:46:16
 @@ -44,6 +44,8 @@
  #include "support.hpp"
  #include "option.hpp"
@@ -477,8 +500,8 @@ diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
  
  static sRGBQUAD ColorTable[ 3 ][ 17 ] =
 diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
---- a/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 17:46:16
 @@ -61,6 +61,10 @@
  {
  	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
@@ -500,7 +523,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	iTMS9901 *pic = m_PIC;
  	cSdlTMS9918A *vdp = dynamic_cast<cSdlTMS9918A *>( m_VDP.get( ));
  
-@@ -401,10 +408,22 @@
+@@ -401,10 +408,43 @@
  						}
  					}
  				}
@@ -510,8 +533,30 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +				}
  				if( event.key.keysym.sym == SDLK_ESCAPE )
  				{
- 					goto done;
+-					goto done;
++					m_MenuHeld = true;
++					m_MenuChorded = false;
++					break;
  				}
++				if( m_MenuHeld )
++				{
++					m_MenuChorded = true;
++					m_SwallowedScancodes[ event.key.keysym.scancode ] = true;
++
++					if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
++					{
++						SaveCurrentState( );
++					}
++					else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
++					{
++						LoadCurrentState( );
++					}
++					else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
++					{
++						Reset( );
++					}
++					break;
++				}
 +				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 +				{
 +					if( event.key.repeat == 0 )
@@ -523,11 +568,39 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  				if(( SDL_GetModState( ) & KMOD_CTRL ) != 0 )
  				{
  					switch( event.key.keysym.sym )
-@@ -455,7 +474,14 @@
+@@ -440,10 +480,10 @@
+ 					switch( event.key.keysym.sym )
+ 					{
+ 						case SDLK_F2 :
+-							SaveImage( SAVE_IMAGE );
++							SaveCurrentState( );
+ 							break;
+ 						case SDLK_F3 :
+-							LoadImage( SAVE_IMAGE );
++							LoadCurrentState( );
+ 							break;
+ 						case SDLK_F10 :
+ 							Reset( );
+@@ -455,7 +495,29 @@
  				}
  				break;
  			case SDL_KEYUP :
 -				KeyReleased( event.key.keysym );
++				if( event.key.keysym.sym == SDLK_ESCAPE )
++				{
++					m_MenuHeld = false;
++					if( ! m_MenuChorded )
++					{
++						goto done;
++					}
++					break;
++				}
++				if( m_SwallowedScancodes[ event.key.keysym.scancode ] )
++				{
++					m_SwallowedScancodes[ event.key.keysym.scancode ] = false;
++					m_ActiveKeycode[ event.key.keysym.scancode ] = SDLK_UNKNOWN;
++					break;
++				}
 +				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 +				{
 +					ApplyKeyAction( *action, event.key.keysym.scancode, false );
@@ -539,7 +612,67 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  				m_ActiveKeycode[ event.key.keysym.scancode ] = SDLK_UNKNOWN;
  				break;
  			case SDL_QUIT :
-@@ -646,6 +672,38 @@
+@@ -519,6 +581,59 @@
+ 	return retVal;
+ }
+ 
++std::string cSdlTI994A::GetSaveFileName( ) const
++{
++	std::string base = "ti-994a";
++	if(( m_Cartridge != nullptr ) && ( m_Cartridge->GetFileName( ) != nullptr ))
++	{
++		std::filesystem::path p( m_Cartridge->GetFileName( ));
++		if( ! p.stem( ).empty( ))
++		{
++			base = p.stem( ).string( );
++		}
++	}
++	auto saveDir = GetCommonPath( ) / "saves";
++	std::error_code ec;
++	std::filesystem::create_directories( saveDir, ec );
++	return ( saveDir / ( base + ".img" )).string( );
++}
++
++bool cSdlTI994A::SaveCurrentState( )
++{
++	auto file = GetSaveFileName( );
++	fprintf( stderr, "Saving state to %s\n", file.c_str( ));
++	return SaveImage( file.c_str( ));
++}
++
++bool cSdlTI994A::LoadCurrentState( )
++{
++	auto file = GetSaveFileName( );
++	if( ! std::filesystem::exists( file ))
++	{
++		std::string base = "ti-994a";
++		if(( m_Cartridge != nullptr ) && ( m_Cartridge->GetFileName( ) != nullptr ))
++		{
++			std::filesystem::path p( m_Cartridge->GetFileName( ));
++			if( ! p.stem( ).empty( ))
++			{
++				base = p.stem( ).string( );
++			}
++		}
++		auto fallback1 = GetCommonPath( ) / ( base + ".img" );
++		auto fallback2 = GetCommonPath( ) / "ti-994a.img";
++		if( std::filesystem::exists( fallback1 ))
++		{
++			file = fallback1.string( );
++		}
++		else if( std::filesystem::exists( fallback2 ))
++		{
++			file = fallback2.string( );
++		}
++	}
++	fprintf( stderr, "Loading state from %s\n", file.c_str( ));
++	return LoadImage( file.c_str( ));
++}
++
+ void cSdlTI994A::SetJoystick( int index, SDL_Joystick *joystick )
+ {
+ 	m_JoystickMap[ index ] = SDL_JoystickInstanceID( joystick );
+@@ -646,6 +761,50 @@
  		case SDLK_UP    :
  		case SDLK_KP_8  : pic->SetJoystickY( 0,  1 );			break;
  		default : ;
@@ -561,6 +694,18 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +				Reset( );
 +			}
 +			break;
++		case sKeyAction::SAVE :
++			if( down )
++			{
++				SaveCurrentState( );
++			}
++			break;
++		case sKeyAction::LOAD :
++			if( down )
++			{
++				LoadCurrentState( );
++			}
++			break;
 +		case sKeyAction::KEYS :
 +			if( action.key1 == VK_NONE )
 +			{
@@ -579,8 +724,8 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  }
  
 diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
---- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 17:46:16
 @@ -37,6 +37,15 @@
  
  DBG_REGISTER( __FILE__ );
@@ -681,8 +826,8 @@ diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
  		m_FullScreen = false;
  	}
 diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
---- a/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 15:17:09
-+++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 15:17:09
+--- a/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 17:46:11
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 17:46:16
 @@ -89,6 +89,17 @@
  	int ratio   = 44100 / sampleFreq;
  	int samples = DEFAULT_SAMPLES / ratio;

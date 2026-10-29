@@ -414,7 +414,28 @@ void cSdlTI994A::Run( )
 				}
 				if( event.key.keysym.sym == SDLK_ESCAPE )
 				{
-					goto done;
+					m_MenuHeld = true;
+					m_MenuChorded = false;
+					break;
+				}
+				if( m_MenuHeld )
+				{
+					m_MenuChorded = true;
+					m_SwallowedScancodes[ event.key.keysym.scancode ] = true;
+
+					if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
+					{
+						SaveCurrentState( );
+					}
+					else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
+					{
+						LoadCurrentState( );
+					}
+					else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
+					{
+						Reset( );
+					}
+					break;
 				}
 				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 				{
@@ -459,10 +480,10 @@ void cSdlTI994A::Run( )
 					switch( event.key.keysym.sym )
 					{
 						case SDLK_F2 :
-							SaveImage( SAVE_IMAGE );
+							SaveCurrentState( );
 							break;
 						case SDLK_F3 :
-							LoadImage( SAVE_IMAGE );
+							LoadCurrentState( );
 							break;
 						case SDLK_F10 :
 							Reset( );
@@ -474,6 +495,21 @@ void cSdlTI994A::Run( )
 				}
 				break;
 			case SDL_KEYUP :
+				if( event.key.keysym.sym == SDLK_ESCAPE )
+				{
+					m_MenuHeld = false;
+					if( ! m_MenuChorded )
+					{
+						goto done;
+					}
+					break;
+				}
+				if( m_SwallowedScancodes[ event.key.keysym.scancode ] )
+				{
+					m_SwallowedScancodes[ event.key.keysym.scancode ] = false;
+					m_ActiveKeycode[ event.key.keysym.scancode ] = SDLK_UNKNOWN;
+					break;
+				}
 				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 				{
 					ApplyKeyAction( *action, event.key.keysym.scancode, false );
@@ -543,6 +579,59 @@ bool cSdlTI994A::LoadImage( const char *filename )
 	}
 
 	return retVal;
+}
+
+std::string cSdlTI994A::GetSaveFileName( ) const
+{
+	std::string base = "ti-994a";
+	if(( m_Cartridge != nullptr ) && ( m_Cartridge->GetFileName( ) != nullptr ))
+	{
+		std::filesystem::path p( m_Cartridge->GetFileName( ));
+		if( ! p.stem( ).empty( ))
+		{
+			base = p.stem( ).string( );
+		}
+	}
+	auto saveDir = GetCommonPath( ) / "saves";
+	std::error_code ec;
+	std::filesystem::create_directories( saveDir, ec );
+	return ( saveDir / ( base + ".img" )).string( );
+}
+
+bool cSdlTI994A::SaveCurrentState( )
+{
+	auto file = GetSaveFileName( );
+	fprintf( stderr, "Saving state to %s\n", file.c_str( ));
+	return SaveImage( file.c_str( ));
+}
+
+bool cSdlTI994A::LoadCurrentState( )
+{
+	auto file = GetSaveFileName( );
+	if( ! std::filesystem::exists( file ))
+	{
+		std::string base = "ti-994a";
+		if(( m_Cartridge != nullptr ) && ( m_Cartridge->GetFileName( ) != nullptr ))
+		{
+			std::filesystem::path p( m_Cartridge->GetFileName( ));
+			if( ! p.stem( ).empty( ))
+			{
+				base = p.stem( ).string( );
+			}
+		}
+		auto fallback1 = GetCommonPath( ) / ( base + ".img" );
+		auto fallback2 = GetCommonPath( ) / "ti-994a.img";
+		if( std::filesystem::exists( fallback1 ))
+		{
+			file = fallback1.string( );
+		}
+		else if( std::filesystem::exists( fallback2 ))
+		{
+			file = fallback2.string( );
+		}
+	}
+	fprintf( stderr, "Loading state from %s\n", file.c_str( ));
+	return LoadImage( file.c_str( ));
 }
 
 void cSdlTI994A::SetJoystick( int index, SDL_Joystick *joystick )
@@ -688,6 +777,18 @@ void cSdlTI994A::ApplyKeyAction( const sKeyAction &action, int scancode, bool do
 			if( down )
 			{
 				Reset( );
+			}
+			break;
+		case sKeyAction::SAVE :
+			if( down )
+			{
+				SaveCurrentState( );
+			}
+			break;
+		case sKeyAction::LOAD :
+			if( down )
+			{
+				LoadCurrentState( );
 			}
 			break;
 		case sKeyAction::KEYS :

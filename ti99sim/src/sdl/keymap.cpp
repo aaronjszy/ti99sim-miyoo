@@ -33,17 +33,16 @@
 
 namespace
 {
-	// Matches the Miyoo Mini button layout (the physical button is in brackets) and
-	// starts from the layout the GPi Case/RG351P handheld patches use
+	// Matches the Miyoo Mini button layout (the physical button is in brackets)
 	const char DEFAULT_KEYMAP[ ] =
 		"Space      = FIRE          # [A]\n"
 		"Left Ctrl  = 1             # [B]\n"
 		"Left Shift = 2             # [X]\n"
-		"Left Alt   = 3             # [Y]\n"
-		"E          = FCTN+EQUALS   # [L1] QUIT\n"
-		"T          = FCTN+8        # [R1] REDO\n"
-		"Tab        = SPACE         # [L2]\n"
-		"Backspace  = FCTN+9        # [R2] BACK\n"
+		"Left Alt   = Y             # [Y]\n"
+		"E          = SPACE         # [L1]\n"
+		"T          = N             # [R1]\n"
+		"Tab        = FCTN+9        # [L2] BACK\n"
+		"Backspace  = FCTN+8        # [R2] REDO\n"
 		"Return     = ENTER         # [Start]\n"
 		"Right Ctrl = P             # [Select]\n";
 
@@ -113,6 +112,16 @@ namespace
 		if( name == "RESET" )
 		{
 			action.type = sKeyAction::RESET;
+			return action;
+		}
+		if( name == "SAVE" )
+		{
+			action.type = sKeyAction::SAVE;
+			return action;
+		}
+		if( name == "LOAD" )
+		{
+			action.type = sKeyAction::LOAD;
 			return action;
 		}
 		if( name == "NONE" )

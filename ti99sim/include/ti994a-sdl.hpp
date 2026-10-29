@@ -53,6 +53,9 @@ class cSdlTI994A :
 	int                 m_JoystickPosY[ 2 ];
 
 	SDL_Keycode         m_ActiveKeycode[ SDL_NUM_SCANCODES ];
+	bool                m_MenuHeld{ false };
+	bool                m_MenuChorded{ false };
+	bool                m_SwallowedScancodes[ SDL_NUM_SCANCODES ]{ false };
 
 	cKeyMap             m_KeyMap;
 
@@ -67,6 +70,10 @@ public:
 	virtual void Run( ) override;
 	virtual bool SaveImage( const char * ) override;
 	virtual bool LoadImage( const char * ) override;
+
+	bool SaveCurrentState( );
+	bool LoadCurrentState( );
+	std::string GetSaveFileName( ) const;
 
 	void SetJoystick( int, SDL_Joystick * );
 

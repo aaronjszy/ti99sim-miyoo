@@ -20,7 +20,7 @@
 
 struct sKeyAction
 {
-	enum TYPE { KEYS, FIRE, RESET };
+	enum TYPE { KEYS, FIRE, RESET, SAVE, LOAD };
 
 	TYPE          type{ KEYS };
 	VIRTUAL_KEY_E key1{ VK_NONE };		// VK_NONE for both keys == ignore the host key

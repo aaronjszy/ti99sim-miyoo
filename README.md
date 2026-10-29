@@ -46,18 +46,23 @@ containerised helper that does this for you would be a good contribution (see [H
 The Miyoo's buttons reach the emulator as keyboard keys; the layout below is the default and can be changed
 (see [Configuration](#configuration)).
 
-| Button | TI action |
-|---|---|
-| D-pad | Joystick |
-| A | Joystick fire |
-| B / X / Y | `1` / `2` / `3` (title screen and menu choices) |
-| L1 | `FCTN` + `=` (QUIT) |
-| R1 | `FCTN` + `8` (REDO) |
-| L2 | Space |
-| R2 | `FCTN` + `9` (BACK) |
-| Start | Enter |
-| Select | `P` |
-| Menu | **Quits the emulator** |
+| Button | TI action | Notes |
+|---|---|---|
+| D-pad | Joystick | Directional controls |
+| A | Joystick fire | Primary fire / confirm |
+| B | `1` | Menu option 1 / 1-Player |
+| X | `2` | Cartridge boot selection (`2`) / 2-Player |
+| Y | `Y` | Answers "Yes" to prompts ("Play again (Y/N)?") |
+| L1 | Space | Secondary trigger (Parsec refueling, jump, thrust) |
+| R1 | `N` | Answers "No" to prompts |
+| L2 | `FCTN` + `9` (BACK) | Secondary back/cancel |
+| R2 | `FCTN` + `8` (REDO) | Secondary redo |
+| Start | Enter | Menu confirm / start game |
+| Select | `P` | Pause |
+| Menu (tap) | **Quits the emulator** | Exits cleanly to Onion on release |
+| Menu + R2 (or R1) | **Save State** | Saved per-cartridge in `Emu/TI99/saves/` |
+| Menu + L2 (or L1) | **Load State** | Restores state for active cartridge |
+| Menu + Select / Start | **Reset Console** | Reboots the console |
 
 There is no on-screen keyboard yet, so programs that need typing (TI BASIC, for example) are not practical.
 
@@ -66,7 +71,7 @@ There is no on-screen keyboard yet, so programs that need typing (TI BASIC, for 
 Everything is plain text files on the card, in `Emu/TI99/`; no rebuild is needed.
 
 **`keymap.ini`** maps buttons to TI keys, one `<SDL key name> = <action>` per line. Actions are `FIRE`, `RESET`,
-`NONE`, or a TI key (`A`-`Z`, `0`-`9`, `ENTER`, `SPACE`, `COMMA`, `PERIOD`, `SLASH`, `SEMICOLON`, `EQUALS`),
+`SAVE`, `LOAD`, `NONE`, or a TI key (`A`-`Z`, `0`-`9`, `ENTER`, `SPACE`, `COMMA`, `PERIOD`, `SLASH`, `SEMICOLON`, `EQUALS`),
 optionally with a modifier: `FCTN+9`, `SHIFT+1`, `CTRL+C`. The file's comments list which SDL key each Miyoo
 button sends. `make install` keeps an existing `keymap.ini`, so your changes survive upgrades.
 
@@ -89,7 +94,8 @@ goes wrong. Each run starts with `display:` and `audio:` lines showing what the 
   buffers under about 11 ms; this reading of its source is not confirmed on hardware). Some of the lag may be inherent
   to individual games.
 - **Menu quits** the emulator. Onion's freeze-and-switch behaviour only exists for RetroArch (and DraStic), so it is not
-  available here, and TI-99/Sim's own save-state keys (F2/F3) are not mapped to any button.
+  available here. However, manual save states are supported via the standard Onion hotkeys (`Menu + R2` to save, `Menu + L2` to load),
+  stored per-game in `Emu/TI99/saves/`.
 - **Uneven pixel widths:** at 2.5× scaling some pixel columns and rows are 3 px wide and others 2 px.
 - **No on-screen keyboard**, see above.
 
@@ -137,12 +143,12 @@ upstream-modifications.patch  diff of all changes against upstream commit e36085
 
 ## TODO / Help wanted
 
-- Test on other hardware and firmware (Miyoo Mini Plus, other Onion versions) and with more cartridges.
 - More carefully thought out and widely applicable button mappings
 - Onion integration for the Menu button: autosave on exit and resume on launch.
 - Lower audio latency, which probably means patching and rebuilding the SDL2 port's audio driver.
 - Release builds (GitHub Actions) so people can download a ready-made zip.
 - See if we can setup ti99sim as a proper RetroArch core
+- Test on other hardware and firmware (Miyoo Mini Plus, other Onion versions) and with more cartridges.
 
 ## Credits and licences
 
