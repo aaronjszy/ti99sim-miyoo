@@ -691,6 +691,66 @@ bool cSdlTI994A::LoadCurrentState( )
 	return LoadImage( file.c_str( ));
 }
 
+bool cSdlTI994A::InsertCartridge( iCartridge *pCartridge )
+{
+	FUNCTION_ENTRY( this, "cSdlTI994A::InsertCartridge", true );
+
+	bool retVal = cTI994AGK::InsertCartridge( pCartridge );
+
+	if( retVal && ( pCartridge != nullptr ) && ( pCartridge->GetFileName( ) != nullptr ))
+	{
+		LoadCartridgeKeyMap( pCartridge->GetFileName( ));
+	}
+
+	return retVal;
+}
+
+void cSdlTI994A::LoadCartridgeKeyMap( const std::string &cartridgePath )
+{
+	FUNCTION_ENTRY( this, "cSdlTI994A::LoadCartridgeKeyMap", true );
+
+	if( cartridgePath.empty( ))
+	{
+		return;
+	}
+
+	std::filesystem::path cart( cartridgePath );
+	std::string stem = cart.stem( ).string( );
+
+	if( stem.empty( ))
+	{
+		return;
+	}
+
+	std::error_code ec;
+	std::vector<std::filesystem::path> candidates =
+	{
+		// 1. Next to the ROM file (e.g. /mnt/SDCARD/Roms/TI99/<game>.ini)
+		cart.parent_path( ) / ( stem + ".ini" ),
+		cart.parent_path( ) / ( stem + ".keymap.ini" ),
+
+		// 2. In keymaps/ subdirectory of emulator
+		GetCommonPath( ) / "keymaps" / ( stem + ".ini" ),
+		GetCommonPath( ) / "keymaps" / ( stem + ".keymap.ini" ),
+		std::filesystem::path( "keymaps" ) / ( stem + ".ini" ),
+		std::filesystem::path( "keymaps" ) / ( stem + ".keymap.ini" ),
+
+		// 3. In emulator root directory
+		GetCommonPath( ) / ( stem + ".ini" ),
+		std::filesystem::path( stem + ".ini" )
+	};
+
+	for( const auto &candidate : candidates )
+	{
+		if( std::filesystem::exists( candidate, ec ))
+		{
+			fprintf( stdout, "keymap: loaded game layout from %s\n", candidate.c_str( ));
+			m_KeyMap.Load( candidate );
+			return;
+		}
+	}
+}
+
 void cSdlTI994A::SetJoystick( int index, SDL_Joystick *joystick )
 {
 	m_JoystickMap[ index ] = SDL_JoystickInstanceID( joystick );

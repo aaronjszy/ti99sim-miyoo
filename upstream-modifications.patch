@@ -1,6 +1,6 @@
 diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 --- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/include/keymap.hpp	2026-10-29 19:03:11
++++ b/ti99sim/include/keymap.hpp	2026-10-29 19:15:32
 @@ -0,0 +1,47 @@
 +//----------------------------------------------------------------------------
 +//
@@ -51,7 +51,7 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +#endif
 diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 --- a/ti99sim/include/ti994a-sdl.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 19:03:11
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 19:15:32
 @@ -31,6 +31,7 @@
  
  #include <atomic>
@@ -60,7 +60,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  
  struct SDL_Thread;
  
-@@ -52,7 +53,12 @@
+@@ -52,12 +53,18 @@
  	int                 m_JoystickPosY[ 2 ];
  
  	SDL_Keycode         m_ActiveKeycode[ SDL_NUM_SCANCODES ];
@@ -73,18 +73,25 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  public:
  
  	cSdlTI994A( iCartridge *, iTMS9918A * = nullptr, iTMS9919 * = nullptr, iTMS5220 * = nullptr );
-@@ -65,6 +71,10 @@
+ 
+ 	// iComputer methods
++	virtual bool InsertCartridge( iCartridge * ) override;
+ 	virtual void Reset( ) override;
+ 	virtual bool Sleep( int, UINT32 ) override;
+ 	virtual bool WakeCPU( UINT32 ) override;
+@@ -65,6 +72,11 @@
  	virtual bool SaveImage( const char * ) override;
  	virtual bool LoadImage( const char * ) override;
  
 +	bool SaveCurrentState( );
 +	bool LoadCurrentState( );
 +	std::string GetSaveFileName( ) const;
++	void LoadCartridgeKeyMap( const std::string &cartridgePath );
 +
  	void SetJoystick( int, SDL_Joystick * );
  
  protected:
-@@ -73,6 +83,7 @@
+@@ -73,6 +85,7 @@
  
  	void KeyPressed( SDL_Keysym keysym );
  	void KeyReleased( SDL_Keysym keysym );
@@ -95,7 +102,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
 diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
 --- a/ti99sim/src/core/support.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/support.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/core/support.cpp	2026-10-29 19:15:32
 @@ -148,16 +148,16 @@
  
  std::filesystem::path CreateHomePath( const char *path )
@@ -216,7 +223,7 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  
 diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
 --- a/ti99sim/src/core/ti994a-gk.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-29 19:03:11
++++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-29 19:15:32
 @@ -134,7 +134,7 @@
  
  	auto save = cTI994A::SaveState( );
@@ -248,7 +255,7 @@ diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
  	}
 diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
 --- a/ti99sim/src/core/ti994a.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a.cpp	2026-10-29 19:03:11
++++ b/ti99sim/src/core/ti994a.cpp	2026-10-29 19:15:32
 @@ -741,27 +741,42 @@
  
  	if( save.hasValue( "Console" ))
@@ -317,7 +324,7 @@ diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
  }
 diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
 --- a/ti99sim/src/sdl/Makefile	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/Makefile	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/Makefile	2026-10-29 19:15:32
 @@ -9,7 +9,9 @@
  
  XLIBS	+= -lpthread
@@ -338,7 +345,7 @@ diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
  FILES	+= ti994a-sdl.cpp
 diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
 --- a/ti99sim/src/sdl/bitmap.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 19:15:32
 @@ -28,6 +28,7 @@
  
  #include <algorithm>
@@ -385,7 +392,7 @@ diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
  	{
 diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 --- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 19:15:32
 @@ -0,0 +1,222 @@
 +//----------------------------------------------------------------------------
 +//
@@ -611,7 +618,7 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +}
 diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
 --- a/ti99sim/src/sdl/main.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/main.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/main.cpp	2026-10-29 19:15:32
 @@ -44,6 +44,8 @@
  #include "support.hpp"
  #include "option.hpp"
@@ -623,7 +630,7 @@ diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
  static sRGBQUAD ColorTable[ 3 ][ 17 ] =
 diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 --- a/ti99sim/src/sdl/ti994a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 19:15:32
 @@ -61,6 +61,10 @@
  {
  	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
@@ -811,7 +818,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	m_StartClock = m_CPU->GetClocks( );
  
  	if( isRunning )
-@@ -519,6 +638,59 @@
+@@ -519,6 +638,119 @@
  	return retVal;
  }
  
@@ -868,10 +875,70 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +	return LoadImage( file.c_str( ));
 +}
 +
++bool cSdlTI994A::InsertCartridge( iCartridge *pCartridge )
++{
++	FUNCTION_ENTRY( this, "cSdlTI994A::InsertCartridge", true );
++
++	bool retVal = cTI994AGK::InsertCartridge( pCartridge );
++
++	if( retVal && ( pCartridge != nullptr ) && ( pCartridge->GetFileName( ) != nullptr ))
++	{
++		LoadCartridgeKeyMap( pCartridge->GetFileName( ));
++	}
++
++	return retVal;
++}
++
++void cSdlTI994A::LoadCartridgeKeyMap( const std::string &cartridgePath )
++{
++	FUNCTION_ENTRY( this, "cSdlTI994A::LoadCartridgeKeyMap", true );
++
++	if( cartridgePath.empty( ))
++	{
++		return;
++	}
++
++	std::filesystem::path cart( cartridgePath );
++	std::string stem = cart.stem( ).string( );
++
++	if( stem.empty( ))
++	{
++		return;
++	}
++
++	std::error_code ec;
++	std::vector<std::filesystem::path> candidates =
++	{
++		// 1. Next to the ROM file (e.g. /mnt/SDCARD/Roms/TI99/<game>.ini)
++		cart.parent_path( ) / ( stem + ".ini" ),
++		cart.parent_path( ) / ( stem + ".keymap.ini" ),
++
++		// 2. In keymaps/ subdirectory of emulator
++		GetCommonPath( ) / "keymaps" / ( stem + ".ini" ),
++		GetCommonPath( ) / "keymaps" / ( stem + ".keymap.ini" ),
++		std::filesystem::path( "keymaps" ) / ( stem + ".ini" ),
++		std::filesystem::path( "keymaps" ) / ( stem + ".keymap.ini" ),
++
++		// 3. In emulator root directory
++		GetCommonPath( ) / ( stem + ".ini" ),
++		std::filesystem::path( stem + ".ini" )
++	};
++
++	for( const auto &candidate : candidates )
++	{
++		if( std::filesystem::exists( candidate, ec ))
++		{
++			fprintf( stdout, "keymap: loaded game layout from %s\n", candidate.c_str( ));
++			m_KeyMap.Load( candidate );
++			return;
++		}
++	}
++}
++
  void cSdlTI994A::SetJoystick( int index, SDL_Joystick *joystick )
  {
  	m_JoystickMap[ index ] = SDL_JoystickInstanceID( joystick );
-@@ -646,6 +818,50 @@
+@@ -646,6 +878,50 @@
  		case SDLK_UP    :
  		case SDLK_KP_8  : pic->SetJoystickY( 0,  1 );			break;
  		default : ;
@@ -924,7 +991,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  
 diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
 --- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 19:15:32
 @@ -37,6 +37,15 @@
  
  DBG_REGISTER( __FILE__ );
@@ -1026,7 +1093,7 @@ diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
  	}
 diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
 --- a/ti99sim/src/sdl/tms9919-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 19:03:12
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 19:15:32
 @@ -89,6 +89,17 @@
  	int ratio   = 44100 / sampleFreq;
  	int samples = DEFAULT_SAMPLES / ratio;

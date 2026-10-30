@@ -64,6 +64,7 @@ public:
 	cSdlTI994A( iCartridge *, iTMS9918A * = nullptr, iTMS9919 * = nullptr, iTMS5220 * = nullptr );
 
 	// iComputer methods
+	virtual bool InsertCartridge( iCartridge * ) override;
 	virtual void Reset( ) override;
 	virtual bool Sleep( int, UINT32 ) override;
 	virtual bool WakeCPU( UINT32 ) override;
@@ -74,6 +75,7 @@ public:
 	bool SaveCurrentState( );
 	bool LoadCurrentState( );
 	std::string GetSaveFileName( ) const;
+	void LoadCartridgeKeyMap( const std::string &cartridgePath );
 
 	void SetJoystick( int, SDL_Joystick * );
 

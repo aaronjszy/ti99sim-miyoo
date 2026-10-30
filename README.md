@@ -75,6 +75,15 @@ Everything is plain text files on the card, in `Emu/TI99/`; no rebuild is needed
 optionally with a modifier: `FCTN+9`, `SHIFT+1`, `CTRL+C`. The file's comments list which SDL key each Miyoo
 button sends. `make install` keeps an existing `keymap.ini`, so your changes survive upgrades.
 
+**Game-specific keymaps (`<game>.ini`):**
+To customize buttons for a specific game, create an `.ini` file matching the cartridge name (e.g. `Parsec.ini`).
+The emulator checks the following locations in order, applying the first one found over the base `keymap.ini`:
+1. Next to the cartridge file: `Roms/TI99/<game>.ini` (or `<game>.keymap.ini`)
+2. In the keymaps directory: `Emu/TI99/keymaps/<game>.ini`
+3. In the emulator directory: `Emu/TI99/<game>.ini`
+
+*Included:* A bundled `keymaps/Parsec.ini` is provided out of the box, mapping the face buttons `B`, `X`, `Y` to **Lift 1, Lift 2, and Lift 3** (essential for refueling and tight maneuvering) and `L1`/`R1` to `Y`/`N`.
+
 **`launch.sh`** sets environment variables for the emulator:
 
 | Variable | Effect |
