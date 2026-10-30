@@ -414,8 +414,11 @@ void cSdlTI994A::Run( )
 				}
 				if( event.key.keysym.sym == SDLK_ESCAPE )
 				{
-					m_MenuHeld = true;
-					m_MenuChorded = false;
+					if( event.key.repeat == 0 )
+					{
+						m_MenuHeld = true;
+						m_MenuChorded = false;
+					}
 					break;
 				}
 				if( m_MenuHeld )
@@ -423,17 +426,20 @@ void cSdlTI994A::Run( )
 					m_MenuChorded = true;
 					m_SwallowedScancodes[ event.key.keysym.scancode ] = true;
 
-					if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
+					if( event.key.repeat == 0 )
 					{
-						SaveCurrentState( );
-					}
-					else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
-					{
-						LoadCurrentState( );
-					}
-					else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
-					{
-						Reset( );
+						if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
+						{
+							SaveCurrentState( );
+						}
+						else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
+						{
+							LoadCurrentState( );
+						}
+						else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
+						{
+							Reset( );
+						}
 					}
 					break;
 				}
@@ -548,7 +554,27 @@ bool cSdlTI994A::SaveImage( const char *filename )
 		StopThread( );
 	}
 
-	bool retVal = cTI994A::SaveImage( filename );
+	bool retVal = false;
+
+	try
+	{
+		if( auto save = SaveState( ))
+		{
+			std::filesystem::path path( filename );
+			std::error_code ec;
+			std::filesystem::create_directories( path.parent_path( ), ec );
+			save->SaveImage( path );
+			retVal = true;
+		}
+	}
+	catch( const std::exception &e )
+	{
+		fprintf( stderr, "Exception saving state: %s\n", e.what( ));
+	}
+	catch( ... )
+	{
+		fprintf( stderr, "Unknown exception saving state\n" );
+	}
 
 	if( isRunning )
 	{
@@ -569,7 +595,38 @@ bool cSdlTI994A::LoadImage( const char *filename )
 		StopThread( );
 	}
 
-	bool retVal = cTI994A::LoadImage( filename );
+	bool retVal = false;
+
+	try
+	{
+		auto restore = SaveState( );
+		std::filesystem::path path( filename );
+
+		if( auto save = sStateSection::LoadImage( path ))
+		{
+			if( ParseState( *save ))
+			{
+				retVal = true;
+			}
+		}
+
+		if( ! retVal )
+		{
+			fprintf( stderr, "Failed to load saved image!\n" );
+			if( restore )
+			{
+				ParseState( *restore );
+			}
+		}
+	}
+	catch( const std::exception &e )
+	{
+		fprintf( stderr, "Exception loading state: %s\n", e.what( ));
+	}
+	catch( ... )
+	{
+		fprintf( stderr, "Unknown exception loading state\n" );
+	}
 
 	m_StartClock = m_CPU->GetClocks( );
 

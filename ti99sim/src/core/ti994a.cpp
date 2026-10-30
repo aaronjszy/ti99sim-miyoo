@@ -741,26 +741,41 @@ bool cTI994A::ParseState( const sStateSection &save )
 
 	if( save.hasValue( "Console" ))
 	{
-		auto consoleRef = save.getValue( "Console" );
-		if( auto console = cCartridge::LoadCartridge( consoleRef, "console" ))
+		if( m_Console != nullptr )
 		{
-			save.loadSubSection( console );
-			ReplaceConsole( console );
-
-			if( UINT8 MHz = cpuMemory.ReadByte( 0x000C ))
+			save.loadSubSection( m_Console );
+		}
+		else
+		{
+			auto consoleRef = save.getValue( "Console" );
+			if( auto console = cCartridge::LoadCartridge( consoleRef, "console" ))
 			{
-				m_ClockSpeed = 1000000 * MHz / 16;
+				save.loadSubSection( console );
+				ReplaceConsole( console );
+
+				if( UINT8 MHz = cpuMemory.ReadByte( 0x000C ))
+				{
+					m_ClockSpeed = 1000000 * MHz / 16;
+				}
 			}
 		}
 	}
 
 	if( save.hasValue( "Cartridge" ))
 	{
-		auto cartridgeRef = save.getValue( "Cartridge" );
-		if( auto cartridge = cCartridge::LoadCartridge( cartridgeRef, "cartridges" ))
+		if( m_Cartridge != nullptr )
 		{
-			save.loadSubSection( cartridge );
-			ReplaceCartridge( cartridge );
+			save.loadSubSection( m_Cartridge );
+			UpdateMemory( 0x0000FC0C | INFO_MASK_CARTRIDGE );
+		}
+		else
+		{
+			auto cartridgeRef = save.getValue( "Cartridge" );
+			if( auto cartridge = cCartridge::LoadCartridge( cartridgeRef, "cartridges" ))
+			{
+				save.loadSubSection( cartridge );
+				ReplaceCartridge( cartridge );
+			}
 		}
 	}
 
@@ -803,6 +818,11 @@ bool cTI994A::ParseState( const sStateSection &save )
 	save.load( "GromReadShift", m_GromReadShift, SaveFormat::DECIMAL );
 	save.load( "GromWriteShift", m_GromWriteShift, SaveFormat::DECIMAL );
 	save.load( "PAD", m_Scratchpad, sizeof( m_Scratchpad ));
+
+	cpuMemory.SetMemory( 0x8000, 0x0100, m_Scratchpad, false );
+	cpuMemory.SetMemory( 0x8100, 0x0100, m_Scratchpad, false );
+	cpuMemory.SetMemory( 0x8200, 0x0100, m_Scratchpad, false );
+	cpuMemory.SetMemory( 0x8300, 0x0100, m_Scratchpad, false );
 
 	return true;
 }

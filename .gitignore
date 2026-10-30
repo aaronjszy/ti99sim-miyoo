@@ -5,6 +5,7 @@
 /.local/
 /agents.md
 /AGENTS.md
+/.miyoo-ip
 
 # Build and packaging output (make build / make package / make zip)
 /build/

@@ -119,12 +119,20 @@ commit `e360854` is kept in [`upstream-modifications.patch`](upstream-modificati
 ## Building and hacking
 
 ```sh
-make deps       # download the pinned SDL2 headers and libraries into deps/
-make build      # cross-compile in Docker -> build/ti99sim-sdl
-make package    # assemble dist/SDCARD, a tree mirroring the SD card
-make zip        # ... and zip it
-make install SDCARD=/path/to/card
-make clean      # remove build output (distclean also removes deps/)
+make deps                    # download the pinned SDL2 headers and libraries into deps/
+make build                   # cross-compile in Docker -> build/ti99sim-sdl
+make package                 # assemble dist/SDCARD, a tree mirroring the SD card
+make zip                     # ... and zip it
+make install SDCARD=/path    # copy onto a mounted Onion SD card
+make deploy IP=192.168.1.50  # scp zip to Miyoo and extract on device (user: 'onion')
+make patch                   # regenerate upstream-modifications.patch against commit e360854
+make clean                   # remove build output (distclean also removes deps/)
+```
+
+To avoid retyping the IP every time when iterating over Wi-Fi, save it once:
+```sh
+echo "192.168.1.50" > .miyoo-ip
+make deploy                  # uses .miyoo-ip automatically (alias: make scp)
 ```
 
 The toolchain image and every downloaded file are pinned (image by digest, libraries by SHA-256), so builds are

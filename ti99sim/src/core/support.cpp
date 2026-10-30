@@ -148,16 +148,16 @@ std::filesystem::path GetHomePath( const char *path )
 
 std::filesystem::path CreateHomePath( const char *path )
 {
+	std::error_code ec;
 	auto homePath = GetHomePath( );
-	auto basePath = homePath / "..";
 
-	std::filesystem::create_directory( homePath, basePath );
+	std::filesystem::create_directories( homePath, ec );
 
 	if( path )
 	{
 		homePath /= path;
 
-		std::filesystem::create_directory( homePath, basePath );
+		std::filesystem::create_directories( homePath, ec );
 	}
 
 	return homePath;

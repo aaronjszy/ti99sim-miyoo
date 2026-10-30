@@ -134,7 +134,7 @@ std::optional<sStateSection> cTI994AGK::SaveState( )
 
 	auto save = cTI994A::SaveState( );
 
-	if( save )
+	if( save && ( m_GK_Cartridge != nullptr ))
 	{
 		save->store( "GK.ROM", m_GK_Cartridge->GetDescriptor( ));
 		save->addSubSection( m_GK_Cartridge );
@@ -167,11 +167,14 @@ bool cTI994AGK::ParseState( const sStateSection &state )
 
 	if( cTI994A::ParseState( state ))
 	{
-		SetWriteProtect( WRITE_PROTECT::ENABLED );
-		SetEnabled( m_GK_Enabled );
-		SetGRAM0( !m_GK_OpSys );
-		SetGRAM12( !m_GK_BASIC );
-		SetLoader( m_GK_LoaderOn );
+		if( m_GK_Cartridge != nullptr )
+		{
+			SetWriteProtect( WRITE_PROTECT::ENABLED );
+			SetEnabled( m_GK_Enabled );
+			SetGRAM0( !m_GK_OpSys );
+			SetGRAM12( !m_GK_BASIC );
+			SetLoader( m_GK_LoaderOn );
+		}
 
 		return true;
 	}

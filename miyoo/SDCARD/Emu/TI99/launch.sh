@@ -1,6 +1,7 @@
 #!/bin/sh
 # TI-99/4A launcher for Onion OS
 cd "$(dirname "$0")"
+export HOME="$PWD"
 export LD_LIBRARY_PATH="$PWD:/config/lib:/customer/lib:$LD_LIBRARY_PATH"
 
 # Display: the Miyoo's SDL2 renderer scales a small window itself (whole-number steps, centred, blurred),
