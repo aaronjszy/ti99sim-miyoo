@@ -149,6 +149,8 @@ void cSdlTI994A::Reset( )
 {
 	FUNCTION_ENTRY( this, "cSdlTI994A::Reset", true );
 
+	ResetDpad( );
+
 	bool isRunning = m_CPU->IsRunning( );
 
 	if( isRunning )
@@ -184,6 +186,8 @@ void cSdlTI994A::Run( )
 		pic->VKeyDown( SDL_SCANCODE_CAPSLOCK, VK_CAPSLOCK );
 	}
 
+	ResetDpad( );
+
 	// Loop waiting for SDL_QUIT
 	SDL_Event event{ };
 	while( SDL_WaitEvent( &event ) >= 0 )
@@ -204,6 +208,9 @@ void cSdlTI994A::Run( )
 						{
 							pic->VKeyDown( SDL_SCANCODE_CAPSLOCK, VK_CAPSLOCK );
 						}
+						break;
+					case SDL_WINDOWEVENT_FOCUS_LOST :
+						ResetDpad( );
 						break;
 					case SDL_WINDOWEVENT_RESIZED :
 						vdp->ResizeWindow( event.window.data1, event.window.data2 );
@@ -397,6 +404,10 @@ void cSdlTI994A::Run( )
 				}
 				break;
 			case SDL_KEYDOWN :
+				if( event.key.repeat != 0 )
+				{
+					break;
+				}
 				m_ActiveKeycode[ event.key.keysym.scancode ] = event.key.keysym.sym;
 				{
 					SDL_Event peek;
@@ -414,11 +425,8 @@ void cSdlTI994A::Run( )
 				}
 				if( event.key.keysym.sym == SDLK_ESCAPE )
 				{
-					if( event.key.repeat == 0 )
-					{
-						m_MenuHeld = true;
-						m_MenuChorded = false;
-					}
+					m_MenuHeld = true;
+					m_MenuChorded = false;
 					break;
 				}
 				if( m_MenuHeld )
@@ -426,29 +434,28 @@ void cSdlTI994A::Run( )
 					m_MenuChorded = true;
 					m_SwallowedScancodes[ event.key.keysym.scancode ] = true;
 
-					if( event.key.repeat == 0 )
+					if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
 					{
-						if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
-						{
-							SaveCurrentState( );
-						}
-						else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
-						{
-							LoadCurrentState( );
-						}
-						else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
-						{
-							Reset( );
-						}
+						SaveCurrentState( );
+					}
+					else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
+					{
+						LoadCurrentState( );
+					}
+					else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
+					{
+						Reset( );
 					}
 					break;
 				}
 				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 				{
-					if( event.key.repeat == 0 )
-					{
-						ApplyKeyAction( *action, event.key.keysym.scancode, true );
-					}
+					ApplyKeyAction( *action, event.key.keysym.scancode, true );
+					break;
+				}
+				if( IsDpadKey( event.key.keysym.sym ))
+				{
+					UpdateDpad( event.key.keysym.sym, true );
 					break;
 				}
 				if(( SDL_GetModState( ) & KMOD_CTRL ) != 0 )
@@ -519,6 +526,10 @@ void cSdlTI994A::Run( )
 				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 				{
 					ApplyKeyAction( *action, event.key.keysym.scancode, false );
+				}
+				else if( IsDpadKey( event.key.keysym.sym ))
+				{
+					UpdateDpad( event.key.keysym.sym, false );
 				}
 				else
 				{
@@ -966,6 +977,181 @@ void cSdlTI994A::KeyReleased( SDL_Keysym keysym )
 		case SDLK_UP    :
 		case SDLK_KP_8  : pic->SetJoystickY( 0, 0 );			break;
 		default : ;
+	}
+}
+
+bool cSdlTI994A::IsDpadKey( SDL_Keycode key ) const
+{
+	switch( key )
+	{
+		case SDLK_UP :
+		case SDLK_DOWN :
+		case SDLK_LEFT :
+		case SDLK_RIGHT :
+		case SDLK_KP_8 :
+		case SDLK_KP_2 :
+		case SDLK_KP_4 :
+		case SDLK_KP_6 :
+			return true;
+		default :
+			return false;
+	}
+}
+
+void cSdlTI994A::UpdateDpad( SDL_Keycode key, bool down )
+{
+	switch( key )
+	{
+		case SDLK_UP :
+		case SDLK_KP_8 :
+			if( m_Dpad.up == down )
+			{
+				return;
+			}
+			m_Dpad.up = down;
+			if( down )
+			{
+				m_Dpad.upSeq = ++m_DpadSeq;
+			}
+			break;
+
+		case SDLK_DOWN :
+		case SDLK_KP_2 :
+			if( m_Dpad.down == down )
+			{
+				return;
+			}
+			m_Dpad.down = down;
+			if( down )
+			{
+				m_Dpad.downSeq = ++m_DpadSeq;
+			}
+			break;
+
+		case SDLK_LEFT :
+		case SDLK_KP_4 :
+			if( m_Dpad.left == down )
+			{
+				return;
+			}
+			m_Dpad.left = down;
+			if( down )
+			{
+				m_Dpad.leftSeq = ++m_DpadSeq;
+			}
+			break;
+
+		case SDLK_RIGHT :
+		case SDLK_KP_6 :
+			if( m_Dpad.right == down )
+			{
+				return;
+			}
+			m_Dpad.right = down;
+			if( down )
+			{
+				m_Dpad.rightSeq = ++m_DpadSeq;
+			}
+			break;
+
+		default :
+			return;
+	}
+
+	ResolveDpad( );
+}
+
+void cSdlTI994A::ResolveDpad( )
+{
+	if( m_PIC == nullptr )
+	{
+		return;
+	}
+
+	int targetX = 0;
+	if( m_Dpad.left && m_Dpad.right )
+	{
+		targetX = ( m_Dpad.rightSeq > m_Dpad.leftSeq ) ? 1 : -1;
+	}
+	else if( m_Dpad.right )
+	{
+		targetX = 1;
+	}
+	else if( m_Dpad.left )
+	{
+		targetX = -1;
+	}
+
+	int targetY = 0;
+	if( m_Dpad.up && m_Dpad.down )
+	{
+		targetY = ( m_Dpad.upSeq > m_Dpad.downSeq ) ? 1 : -1;
+	}
+	else if( m_Dpad.up )
+	{
+		targetY = 1;
+	}
+	else if( m_Dpad.down )
+	{
+		targetY = -1;
+	}
+
+	if( targetX != m_Dpad.resolvedX )
+	{
+		m_Dpad.resolvedX = targetX;
+		m_PIC->SetJoystickX( 0, targetX );
+
+		if( targetX == 1 )
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
+			m_PIC->VKeysDown( SDL_SCANCODE_RIGHT, VK_FCTN, VK_D );
+		}
+		else if( targetX == -1 )
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
+			m_PIC->VKeysDown( SDL_SCANCODE_LEFT, VK_FCTN, VK_S );
+		}
+		else
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
+			m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
+		}
+	}
+
+	if( targetY != m_Dpad.resolvedY )
+	{
+		m_Dpad.resolvedY = targetY;
+		m_PIC->SetJoystickY( 0, targetY );
+
+		if( targetY == 1 )
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
+			m_PIC->VKeysDown( SDL_SCANCODE_UP, VK_FCTN, VK_E );
+		}
+		else if( targetY == -1 )
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_UP );
+			m_PIC->VKeysDown( SDL_SCANCODE_DOWN, VK_FCTN, VK_X );
+		}
+		else
+		{
+			m_PIC->VKeyUp( SDL_SCANCODE_UP );
+			m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
+		}
+	}
+}
+
+void cSdlTI994A::ResetDpad( )
+{
+	m_Dpad = sDpadState{ };
+	if( m_PIC != nullptr )
+	{
+		m_PIC->SetJoystickX( 0, 0 );
+		m_PIC->SetJoystickY( 0, 0 );
+		m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
+		m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
+		m_PIC->VKeyUp( SDL_SCANCODE_UP );
+		m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
 	}
 }
 

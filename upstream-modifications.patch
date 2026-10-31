@@ -1,6 +1,6 @@
 diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 --- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/include/keymap.hpp	2026-10-29 19:15:32
++++ b/ti99sim/include/keymap.hpp	2026-10-31 14:31:31
 @@ -0,0 +1,47 @@
 +//----------------------------------------------------------------------------
 +//
@@ -51,7 +51,7 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +#endif
 diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 --- a/ti99sim/include/ti994a-sdl.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-29 19:15:32
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-31 14:31:31
 @@ -31,6 +31,7 @@
  
  #include <atomic>
@@ -60,7 +60,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  
  struct SDL_Thread;
  
-@@ -52,12 +53,18 @@
+@@ -52,12 +53,46 @@
  	int                 m_JoystickPosY[ 2 ];
  
  	SDL_Keycode         m_ActiveKeycode[ SDL_NUM_SCANCODES ];
@@ -69,6 +69,34 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 +	bool                m_SwallowedScancodes[ SDL_NUM_SCANCODES ]{ false };
  
 +	cKeyMap             m_KeyMap;
++
++	struct sDpadState
++	{
++		bool            up{ false };
++		bool            down{ false };
++		bool            left{ false };
++		bool            right{ false };
++
++		UINT32          upSeq{ 0 };
++		UINT32          downSeq{ 0 };
++		UINT32          leftSeq{ 0 };
++		UINT32          rightSeq{ 0 };
++
++		UINT32          lastUpToggle{ 0 };
++		UINT32          lastDownToggle{ 0 };
++		UINT32          lastLeftToggle{ 0 };
++		UINT32          lastRightToggle{ 0 };
++
++		int             resolvedX{ 0 };
++		int             resolvedY{ 0 };
++	} m_Dpad;
++
++	UINT32              m_DpadSeq{ 0 };
++
++	bool IsDpadKey( SDL_Keycode ) const;
++	void UpdateDpad( SDL_Keycode, bool down );
++	void ResolveDpad( );
++	void ResetDpad( );
 +
  public:
  
@@ -79,7 +107,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  	virtual void Reset( ) override;
  	virtual bool Sleep( int, UINT32 ) override;
  	virtual bool WakeCPU( UINT32 ) override;
-@@ -65,6 +72,11 @@
+@@ -65,6 +100,11 @@
  	virtual bool SaveImage( const char * ) override;
  	virtual bool LoadImage( const char * ) override;
  
@@ -91,7 +119,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  	void SetJoystick( int, SDL_Joystick * );
  
  protected:
-@@ -73,6 +85,7 @@
+@@ -73,6 +113,7 @@
  
  	void KeyPressed( SDL_Keysym keysym );
  	void KeyReleased( SDL_Keysym keysym );
@@ -102,7 +130,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
 diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
 --- a/ti99sim/src/core/support.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/support.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/core/support.cpp	2026-10-31 14:31:31
 @@ -148,16 +148,16 @@
  
  std::filesystem::path CreateHomePath( const char *path )
@@ -223,7 +251,7 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  
 diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
 --- a/ti99sim/src/core/ti994a-gk.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-31 14:31:31
 @@ -134,7 +134,7 @@
  
  	auto save = cTI994A::SaveState( );
@@ -255,7 +283,7 @@ diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
  	}
 diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
 --- a/ti99sim/src/core/ti994a.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/core/ti994a.cpp	2026-10-31 14:31:31
 @@ -741,27 +741,42 @@
  
  	if( save.hasValue( "Console" ))
@@ -324,7 +352,7 @@ diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
  }
 diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
 --- a/ti99sim/src/sdl/Makefile	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/Makefile	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/Makefile	2026-10-31 14:31:31
 @@ -9,7 +9,9 @@
  
  XLIBS	+= -lpthread
@@ -345,7 +373,7 @@ diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
  FILES	+= ti994a-sdl.cpp
 diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
 --- a/ti99sim/src/sdl/bitmap.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-31 14:31:31
 @@ -28,6 +28,7 @@
  
  #include <algorithm>
@@ -392,7 +420,7 @@ diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
  	{
 diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 --- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/sdl/keymap.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-31 14:31:31
 @@ -0,0 +1,222 @@
 +//----------------------------------------------------------------------------
 +//
@@ -618,7 +646,7 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +}
 diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
 --- a/ti99sim/src/sdl/main.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/main.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/main.cpp	2026-10-31 14:31:31
 @@ -44,6 +44,8 @@
  #include "support.hpp"
  #include "option.hpp"
@@ -630,7 +658,7 @@ diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
  static sRGBQUAD ColorTable[ 3 ][ 17 ] =
 diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 --- a/ti99sim/src/sdl/ti994a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-31 14:31:31
 @@ -61,6 +61,10 @@
  {
  	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
@@ -642,7 +670,16 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	m_SleepSem = SDL_CreateSemaphore( 0 );
  	m_WaitSem  = SDL_CreateSemaphore( 0 );
  
-@@ -168,6 +172,9 @@
+@@ -145,6 +149,8 @@
+ {
+ 	FUNCTION_ENTRY( this, "cSdlTI994A::Reset", true );
+ 
++	ResetDpad( );
++
+ 	bool isRunning = m_CPU->IsRunning( );
+ 
+ 	if( isRunning )
+@@ -168,6 +174,9 @@
  
  	int joystick;
  
@@ -652,7 +689,37 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	iTMS9901 *pic = m_PIC;
  	cSdlTMS9918A *vdp = dynamic_cast<cSdlTMS9918A *>( m_VDP.get( ));
  
-@@ -401,10 +408,49 @@
+@@ -177,6 +186,8 @@
+ 		pic->VKeyDown( SDL_SCANCODE_CAPSLOCK, VK_CAPSLOCK );
+ 	}
+ 
++	ResetDpad( );
++
+ 	// Loop waiting for SDL_QUIT
+ 	SDL_Event event{ };
+ 	while( SDL_WaitEvent( &event ) >= 0 )
+@@ -198,6 +209,9 @@
+ 							pic->VKeyDown( SDL_SCANCODE_CAPSLOCK, VK_CAPSLOCK );
+ 						}
+ 						break;
++					case SDL_WINDOWEVENT_FOCUS_LOST :
++						ResetDpad( );
++						break;
+ 					case SDL_WINDOWEVENT_RESIZED :
+ 						vdp->ResizeWindow( event.window.data1, event.window.data2 );
+ 						break;
+@@ -390,6 +404,10 @@
+ 				}
+ 				break;
+ 			case SDL_KEYDOWN :
++				if( event.key.repeat != 0 )
++				{
++					break;
++				}
+ 				m_ActiveKeycode[ event.key.keysym.scancode ] = event.key.keysym.sym;
+ 				{
+ 					SDL_Event peek;
+@@ -401,10 +419,45 @@
  						}
  					}
  				}
@@ -663,11 +730,8 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  				if( event.key.keysym.sym == SDLK_ESCAPE )
  				{
 -					goto done;
-+					if( event.key.repeat == 0 )
-+					{
-+						m_MenuHeld = true;
-+						m_MenuChorded = false;
-+					}
++					m_MenuHeld = true;
++					m_MenuChorded = false;
 +					break;
  				}
 +				if( m_MenuHeld )
@@ -675,35 +739,34 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +					m_MenuChorded = true;
 +					m_SwallowedScancodes[ event.key.keysym.scancode ] = true;
 +
-+					if( event.key.repeat == 0 )
++					if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
 +					{
-+						if(( event.key.keysym.sym == SDLK_BACKSPACE ) || ( event.key.keysym.sym == SDLK_t ))
-+						{
-+							SaveCurrentState( );
-+						}
-+						else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
-+						{
-+							LoadCurrentState( );
-+						}
-+						else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
-+						{
-+							Reset( );
-+						}
++						SaveCurrentState( );
++					}
++					else if(( event.key.keysym.sym == SDLK_TAB ) || ( event.key.keysym.sym == SDLK_e ))
++					{
++						LoadCurrentState( );
++					}
++					else if(( event.key.keysym.sym == SDLK_RCTRL ) || ( event.key.keysym.sym == SDLK_RETURN ))
++					{
++						Reset( );
 +					}
 +					break;
 +				}
 +				if( auto *action = m_KeyMap.Find( event.key.keysym.sym ))
 +				{
-+					if( event.key.repeat == 0 )
-+					{
-+						ApplyKeyAction( *action, event.key.keysym.scancode, true );
-+					}
++					ApplyKeyAction( *action, event.key.keysym.scancode, true );
++					break;
++				}
++				if( IsDpadKey( event.key.keysym.sym ))
++				{
++					UpdateDpad( event.key.keysym.sym, true );
 +					break;
 +				}
  				if(( SDL_GetModState( ) & KMOD_CTRL ) != 0 )
  				{
  					switch( event.key.keysym.sym )
-@@ -440,10 +486,10 @@
+@@ -440,10 +493,10 @@
  					switch( event.key.keysym.sym )
  					{
  						case SDLK_F2 :
@@ -716,7 +779,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  							break;
  						case SDLK_F10 :
  							Reset( );
-@@ -455,7 +501,29 @@
+@@ -455,7 +508,33 @@
  				}
  				break;
  			case SDL_KEYUP :
@@ -740,6 +803,10 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +				{
 +					ApplyKeyAction( *action, event.key.keysym.scancode, false );
 +				}
++				else if( IsDpadKey( event.key.keysym.sym ))
++				{
++					UpdateDpad( event.key.keysym.sym, false );
++				}
 +				else
 +				{
 +					KeyReleased( event.key.keysym );
@@ -747,7 +814,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  				m_ActiveKeycode[ event.key.keysym.scancode ] = SDLK_UNKNOWN;
  				break;
  			case SDL_QUIT :
-@@ -486,8 +554,28 @@
+@@ -486,8 +565,28 @@
  		StopThread( );
  	}
  
@@ -777,7 +844,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	if( isRunning )
  	{
  		StartThread( );
-@@ -507,8 +595,39 @@
+@@ -507,8 +606,39 @@
  		StopThread( );
  	}
  
@@ -818,7 +885,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  	m_StartClock = m_CPU->GetClocks( );
  
  	if( isRunning )
-@@ -519,6 +638,119 @@
+@@ -519,6 +649,119 @@
  	return retVal;
  }
  
@@ -938,13 +1005,10 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  void cSdlTI994A::SetJoystick( int index, SDL_Joystick *joystick )
  {
  	m_JoystickMap[ index ] = SDL_JoystickInstanceID( joystick );
-@@ -646,6 +878,50 @@
- 		case SDLK_UP    :
- 		case SDLK_KP_8  : pic->SetJoystickY( 0,  1 );			break;
- 		default : ;
-+	}
-+}
-+
+@@ -649,6 +892,50 @@
+ 	}
+ }
+ 
 +void cSdlTI994A::ApplyKeyAction( const sKeyAction &action, int scancode, bool down )
 +{
 +	iTMS9901 *pic = m_PIC;
@@ -986,12 +1050,197 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 +				pic->VKeyUp( scancode );
 +			}
 +			break;
++	}
++}
++
+ void cSdlTI994A::KeyReleased( SDL_Keysym keysym )
+ {
+ 	iTMS9901 *pic = m_PIC;
+@@ -690,6 +977,181 @@
+ 		case SDLK_UP    :
+ 		case SDLK_KP_8  : pic->SetJoystickY( 0, 0 );			break;
+ 		default : ;
++	}
++}
++
++bool cSdlTI994A::IsDpadKey( SDL_Keycode key ) const
++{
++	switch( key )
++	{
++		case SDLK_UP :
++		case SDLK_DOWN :
++		case SDLK_LEFT :
++		case SDLK_RIGHT :
++		case SDLK_KP_8 :
++		case SDLK_KP_2 :
++		case SDLK_KP_4 :
++		case SDLK_KP_6 :
++			return true;
++		default :
++			return false;
++	}
++}
++
++void cSdlTI994A::UpdateDpad( SDL_Keycode key, bool down )
++{
++	switch( key )
++	{
++		case SDLK_UP :
++		case SDLK_KP_8 :
++			if( m_Dpad.up == down )
++			{
++				return;
++			}
++			m_Dpad.up = down;
++			if( down )
++			{
++				m_Dpad.upSeq = ++m_DpadSeq;
++			}
++			break;
++
++		case SDLK_DOWN :
++		case SDLK_KP_2 :
++			if( m_Dpad.down == down )
++			{
++				return;
++			}
++			m_Dpad.down = down;
++			if( down )
++			{
++				m_Dpad.downSeq = ++m_DpadSeq;
++			}
++			break;
++
++		case SDLK_LEFT :
++		case SDLK_KP_4 :
++			if( m_Dpad.left == down )
++			{
++				return;
++			}
++			m_Dpad.left = down;
++			if( down )
++			{
++				m_Dpad.leftSeq = ++m_DpadSeq;
++			}
++			break;
++
++		case SDLK_RIGHT :
++		case SDLK_KP_6 :
++			if( m_Dpad.right == down )
++			{
++				return;
++			}
++			m_Dpad.right = down;
++			if( down )
++			{
++				m_Dpad.rightSeq = ++m_DpadSeq;
++			}
++			break;
++
++		default :
++			return;
++	}
++
++	ResolveDpad( );
++}
++
++void cSdlTI994A::ResolveDpad( )
++{
++	if( m_PIC == nullptr )
++	{
++		return;
++	}
++
++	int targetX = 0;
++	if( m_Dpad.left && m_Dpad.right )
++	{
++		targetX = ( m_Dpad.rightSeq > m_Dpad.leftSeq ) ? 1 : -1;
++	}
++	else if( m_Dpad.right )
++	{
++		targetX = 1;
++	}
++	else if( m_Dpad.left )
++	{
++		targetX = -1;
++	}
++
++	int targetY = 0;
++	if( m_Dpad.up && m_Dpad.down )
++	{
++		targetY = ( m_Dpad.upSeq > m_Dpad.downSeq ) ? 1 : -1;
++	}
++	else if( m_Dpad.up )
++	{
++		targetY = 1;
++	}
++	else if( m_Dpad.down )
++	{
++		targetY = -1;
++	}
++
++	if( targetX != m_Dpad.resolvedX )
++	{
++		m_Dpad.resolvedX = targetX;
++		m_PIC->SetJoystickX( 0, targetX );
++
++		if( targetX == 1 )
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
++			m_PIC->VKeysDown( SDL_SCANCODE_RIGHT, VK_FCTN, VK_D );
++		}
++		else if( targetX == -1 )
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
++			m_PIC->VKeysDown( SDL_SCANCODE_LEFT, VK_FCTN, VK_S );
++		}
++		else
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
++			m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
++		}
++	}
++
++	if( targetY != m_Dpad.resolvedY )
++	{
++		m_Dpad.resolvedY = targetY;
++		m_PIC->SetJoystickY( 0, targetY );
++
++		if( targetY == 1 )
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
++			m_PIC->VKeysDown( SDL_SCANCODE_UP, VK_FCTN, VK_E );
++		}
++		else if( targetY == -1 )
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_UP );
++			m_PIC->VKeysDown( SDL_SCANCODE_DOWN, VK_FCTN, VK_X );
++		}
++		else
++		{
++			m_PIC->VKeyUp( SDL_SCANCODE_UP );
++			m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
++		}
++	}
++}
++
++void cSdlTI994A::ResetDpad( )
++{
++	m_Dpad = sDpadState{ };
++	if( m_PIC != nullptr )
++	{
++		m_PIC->SetJoystickX( 0, 0 );
++		m_PIC->SetJoystickY( 0, 0 );
++		m_PIC->VKeyUp( SDL_SCANCODE_LEFT );
++		m_PIC->VKeyUp( SDL_SCANCODE_RIGHT );
++		m_PIC->VKeyUp( SDL_SCANCODE_UP );
++		m_PIC->VKeyUp( SDL_SCANCODE_DOWN );
  	}
  }
  
 diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
 --- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-31 14:31:31
 @@ -37,6 +37,15 @@
  
  DBG_REGISTER( __FILE__ );
@@ -1093,7 +1342,7 @@ diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
  	}
 diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
 --- a/ti99sim/src/sdl/tms9919-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-29 19:15:32
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-31 14:31:31
 @@ -89,6 +89,17 @@
  	int ratio   = 44100 / sampleFreq;
  	int samples = DEFAULT_SAMPLES / ratio;

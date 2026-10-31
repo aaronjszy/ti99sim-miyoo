@@ -59,6 +59,34 @@ class cSdlTI994A :
 
 	cKeyMap             m_KeyMap;
 
+	struct sDpadState
+	{
+		bool            up{ false };
+		bool            down{ false };
+		bool            left{ false };
+		bool            right{ false };
+
+		UINT32          upSeq{ 0 };
+		UINT32          downSeq{ 0 };
+		UINT32          leftSeq{ 0 };
+		UINT32          rightSeq{ 0 };
+
+		UINT32          lastUpToggle{ 0 };
+		UINT32          lastDownToggle{ 0 };
+		UINT32          lastLeftToggle{ 0 };
+		UINT32          lastRightToggle{ 0 };
+
+		int             resolvedX{ 0 };
+		int             resolvedY{ 0 };
+	} m_Dpad;
+
+	UINT32              m_DpadSeq{ 0 };
+
+	bool IsDpadKey( SDL_Keycode ) const;
+	void UpdateDpad( SDL_Keycode, bool down );
+	void ResolveDpad( );
+	void ResetDpad( );
+
 public:
 
 	cSdlTI994A( iCartridge *, iTMS9918A * = nullptr, iTMS9919 * = nullptr, iTMS5220 * = nullptr );
