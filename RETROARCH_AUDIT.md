@@ -137,7 +137,7 @@ However, an audit of the RetroArch and Onion OS integration identified **three c
 | **P1** | **Enable Archive Support (`.zip`, `.7z`)** | [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp), [`.info`](miyoo/SDCARD/RetroArch/.retroarch/cores/ti99sim_libretro.info), [`config.json`](miyoo/SDCARD/Emu/TI99/config.json) | **Done** |
 | **P1** | **Add OSK Initial Position Core Option** | [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp), [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp) | **Done** |
 | **P2** | **Add Core Options v0 Fallback (`SET_VARIABLES`)** | [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp) | **Done** |
-| **P2** | **Audio / Speech Gain Core Options** | [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp), [`tms9919-retro.cpp`](ti99sim/src/libretro/tms9919-retro.cpp) | Pending |
+| **P2** | **Audio / Speech Gain Core Options** | [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp), [`tms9919-retro.cpp`](ti99sim/src/libretro/tms9919-retro.cpp) | **Done** |
 | **P3** | **Wire Floppy Disk (`.dsk`) & Disc Control** | [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp), [`ti994a-retro.cpp`](ti99sim/src/libretro/ti994a-retro.cpp) | Pending |
 
 ---

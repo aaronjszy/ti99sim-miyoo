@@ -29,6 +29,8 @@ cRetroTMS9919::cRetroTMS9919( int sampleFreq ) :
 	cBaseObject( "cRetroTMS9919" ),
 	m_SampleRate( sampleFreq ),
 	m_MasterVolume( 75 ),
+	m_PsgVolume( 100 ),
+	m_SpeechVolume( 100 ),
 	m_VolumeTable( ),
 	m_Info( ),
 	m_ShiftRegister( NOISE_RESET ),
@@ -67,6 +69,16 @@ int cRetroTMS9919::GetPlaybackFrequency( )
 void cRetroTMS9919::SetMasterVolume( int volume )
 {
 	m_MasterVolume = std::clamp( volume, 0, 100 );
+}
+
+void cRetroTMS9919::SetPsgVolume( int volume )
+{
+	m_PsgVolume = std::clamp( volume, 0, 100 );
+}
+
+void cRetroTMS9919::SetSpeechVolume( int volume )
+{
+	m_SpeechVolume = std::clamp( volume, 0, 200 );
 }
 
 void cRetroTMS9919::BeginFrame( uint32_t startClocks, uint32_t totalClocks, int targetSamples )
@@ -177,9 +189,30 @@ void cRetroTMS9919::RenderSamples( INT16 *dst, int samples )
 		}
 	}
 
+	// Apply PSG volume scaling
+	if( m_PsgVolume != 100 )
+	{
+		for( int i = 0; i < samples; i++ )
+		{
+			dst[ i ] = static_cast<INT16>(( static_cast<int32_t>( dst[ i ] ) * m_PsgVolume ) / 100 );
+		}
+	}
+
+	// Mix Speech synthesizer with speech volume scaling
 	if( m_pSpeechSynthesizer != nullptr )
 	{
-		m_pSpeechSynthesizer->AudioCallback( dst, samples );
+		INT16 speechBuf[ 1024 ];
+		int chunk = std::min( samples, 1024 );
+		memset( speechBuf, 0, sizeof( INT16 ) * chunk );
+
+		if( m_pSpeechSynthesizer->AudioCallback( speechBuf, chunk ))
+		{
+			for( int i = 0; i < chunk; i++ )
+			{
+				int32_t mixed = dst[ i ] + (( static_cast<int32_t>( speechBuf[ i ] ) * m_SpeechVolume ) / 100 );
+				dst[ i ] = static_cast<INT16>( std::clamp( mixed, -32768, 32767 ));
+			}
+		}
 	}
 }
 

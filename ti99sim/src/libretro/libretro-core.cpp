@@ -426,7 +426,31 @@ namespace
 			g_OSK.SetTopPosition( strcmp( var.value, "top" ) == 0 );
 		}
 
-		// 8. D-Pad Cursor Mode
+		// 8. PSG Sound Effects Volume
+		var.key   = "ti99sim_volume_psg";
+		var.value = nullptr;
+		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
+		{
+			int psgVol = std::atoi( var.value );
+			if( g_Sound != nullptr )
+			{
+				g_Sound->SetPsgVolume( psgVol );
+			}
+		}
+
+		// 9. TMS5220 Speech Synthesizer Volume
+		var.key   = "ti99sim_volume_speech";
+		var.value = nullptr;
+		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
+		{
+			int speechVol = std::atoi( var.value );
+			if( g_Sound != nullptr )
+			{
+				g_Sound->SetSpeechVolume( speechVol );
+			}
+		}
+
+		// 10. D-Pad Cursor Mode
 		var.key   = "ti99sim_dpad_cursor";
 		var.value = nullptr;
 		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
@@ -436,7 +460,7 @@ namespace
 			else                                          g_DpadCursorMode = eDpadCursorMode::DISABLED;
 		}
 
-		// 8. Button Mappings
+		// 11. Button Mappings
 		for( int i = 0; i < SLOT_COUNT; i++ )
 		{
 			var.key   = SlotOptionKeys[ i ];

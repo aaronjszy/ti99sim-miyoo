@@ -75,6 +75,11 @@ static struct retro_core_option_v2_category option_cats_us[] =
 		"Configure TMS9918A color palette and overscan border display."
 	},
 	{
+		"audio",
+		"Audio",
+		"Configure TMS9919 PSG sound effects and TMS5220 speech synthesizer volume levels."
+	},
+	{
 		"input",
 		"Input",
 		"Configure RetroPad button-to-keyboard bindings and D-pad cursor keys."
@@ -183,6 +188,50 @@ static struct retro_core_option_v2_definition option_defs_us[] =
 			{ nullptr, nullptr }
 		},
 		"bottom"
+	},
+	{
+		"ti99sim_volume_psg",
+		"Audio > PSG Sound Effects Volume",
+		"PSG Volume",
+		"Set the volume level for TMS9919 PSG sound generator voices.",
+		nullptr,
+		"audio",
+		{
+			{ "100", "100% (Default)" },
+			{ "90",  "90%" },
+			{ "80",  "80%" },
+			{ "70",  "70%" },
+			{ "60",  "60%" },
+			{ "50",  "50%" },
+			{ "40",  "40%" },
+			{ "30",  "30%" },
+			{ "20",  "20%" },
+			{ "10",  "10%" },
+			{ "0",   "Muted (0%)" },
+			{ nullptr, nullptr }
+		},
+		"100"
+	},
+	{
+		"ti99sim_volume_speech",
+		"Audio > TMS5220 Speech Volume",
+		"Speech Volume",
+		"Set the volume level for TMS5220 LPC speech synthesis relative to PSG.",
+		nullptr,
+		"audio",
+		{
+			{ "200", "200% (+6 dB)" },
+			{ "175", "175%" },
+			{ "150", "150% (+3.5 dB)" },
+			{ "125", "125%" },
+			{ "100", "100% (Default)" },
+			{ "75",  "75%" },
+			{ "50",  "50%" },
+			{ "25",  "25%" },
+			{ "0",   "Muted (0%)" },
+			{ nullptr, nullptr }
+		},
+		"100"
 	},
 	{
 		"ti99sim_dpad_cursor",
@@ -343,9 +392,9 @@ inline void libretro_set_core_options( retro_environment_t environ_cb )
 
 	if( version >= 1 )
 	{
-		static struct retro_core_option_definition v1_defs[ 32 ];
+		static struct retro_core_option_definition v1_defs[ 48 ];
 		memset( v1_defs, 0, sizeof( v1_defs ));
-		for( size_t i = 0; i < num_opts && i < 31; i++ )
+		for( size_t i = 0; i < num_opts && i < 47; i++ )
 		{
 			v1_defs[ i ].key           = option_defs_us[ i ].key;
 			v1_defs[ i ].desc          = option_defs_us[ i ].desc;
@@ -360,10 +409,10 @@ inline void libretro_set_core_options( retro_environment_t environ_cb )
 	}
 
 	// Fallback for v0 frontends (RETRO_ENVIRONMENT_SET_VARIABLES)
-	static std::string var_strings[ 32 ];
-	static struct retro_variable vars[ 33 ];
+	static std::string var_strings[ 48 ];
+	static struct retro_variable vars[ 49 ];
 	memset( vars, 0, sizeof( vars ));
-	for( size_t i = 0; i < num_opts && i < 32; i++ )
+	for( size_t i = 0; i < num_opts && i < 48; i++ )
 	{
 		std::string str = option_defs_us[ i ].desc ? option_defs_us[ i ].desc : "";
 		str += "; ";

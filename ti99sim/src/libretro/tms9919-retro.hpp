@@ -33,6 +33,8 @@ class cRetroTMS9919 :
 
 	int          m_SampleRate;
 	int          m_MasterVolume;
+	int          m_PsgVolume;
+	int          m_SpeechVolume;
 	int          m_VolumeTable[ 16 ];
 	sVoiceInfo   m_Info[ 4 ];
 	int          m_ShiftRegister;
@@ -69,6 +71,12 @@ public:
 
 	int  GetMasterVolume( ) const { return m_MasterVolume; }
 	void SetMasterVolume( int volume );
+
+	int  GetPsgVolume( ) const { return m_PsgVolume; }
+	void SetPsgVolume( int volume );
+
+	int  GetSpeechVolume( ) const { return m_SpeechVolume; }
+	void SetSpeechVolume( int volume );
 
 	void RefreshVoices( );
 
