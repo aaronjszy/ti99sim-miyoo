@@ -629,7 +629,7 @@ bool cCartridge::ParseState( const sStateSection &state )
 		}
 	}
 
-	return false;
+	return true;
 }
 
 //----------------------------------------------------------------------------

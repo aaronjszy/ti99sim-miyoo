@@ -1,187 +1,186 @@
-# TI-99/Sim for the Miyoo Mini
+# TI-99/Sim for Miyoo Mini (Onion OS — Libretro Core)
 
-A TI-99/4A home computer emulator for the **Miyoo Mini** running **[Onion OS](https://onionui.github.io/)**.
-It is [TI-99/Sim](https://www.mrousseau.org/programs/ti99sim/) (SDL2 port), cross-compiled for the Miyoo and wired
-into Onion, with a button layout for the handheld, a crisp full-screen picture, and a **Games → TI-99/4A** menu entry.
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
 
-**Status:** works on the one device it has been tested on (a Miyoo Mini, Onion OS v4.3.1-1): boot to the TI title
-screen, the menus, and the *Parsec* cartridge. Miyoo Mini Plus, other firmware and other cartridges are untested;
-reports and fixes are welcome (see [Contributing](CONTRIBUTING.md)).
+A native **Libretro / RetroArch core** port of [TI-99/Sim](https://www.mrousseau.org/programs/ti99sim/) (Texas Instruments TI-99/4A Home Computer emulator) packaged for the **Miyoo Mini** and **Miyoo Mini Plus** running **Onion OS**.
 
-## Quick start
+---
 
-You need [Docker](https://docs.docker.com/get-docker/), `git`, `make`, and an Onion OS SD card (or its files).
+## Overview
 
-```sh
-git clone <this repository> ti99sim-miyoo
-cd ti99sim-miyoo
-make install SDCARD=/path/to/mounted/sd-card     # builds, packages, and copies onto the card
-```
+This repository provides a cycle-synced, single-threaded **Libretro core** (`ti99sim_libretro.so`) built on Marc Rousseau's TI-99/Sim emulation engine (`cTMS9900`, `cTMS9901`, `cTMS9918A`, `cTMS9919`, `cTMS5220`) and packaged for Onion OS (`ra32.ss`):
 
-No SD card handy? `make zip` produces `dist/ti99sim-miyoo.zip`; extract it directly onto the root of the card (e.g. `unzip dist/ti99sim-miyoo.zip -d /path/to/sd-card`).
-The first build downloads a few MB of dependencies and the Onion toolchain image, then compiles (a few minutes).
+- **Native RetroArch Integration**: Full support for Onion OS Game Switcher, instant deterministic Savestates & Rewind, RetroArch Quick Menu (`Menu + Select`), hardware scalers/shaders/overlays, and custom input remapping.
+- **Built-in 48-Key TI-99/4A On-Screen Keyboard (OSK)**: Press **`Select`** at any time to open a translucent virtual TI-99/4A keyboard with sticky `SHIFT`, `FCTN`, `CTRL`, and `ALPHA LOCK` modifiers plus dedicated function shortcuts (`AID`, `CLR`, `PROCEED`, `REDO`, `BACK`, `QUIT`).
+- **Core Options v2**: Configure per-button TI-99/4A key bindings, D-pad mode (`TI Joystick` vs `Keyboard Cursor`), Color Palette (`Default`, `NTSC`, `RGB`, `Monochrome`), Video Border (`256×192` vs `288×216`), 32K RAM Expansion, TMS5220 Speech Synthesizer, and Alpha Lock Joystick Fix directly from the RetroArch Quick Menu.
+- **Cycle-Synced 44.1 kHz Audio**: Synchronous single-threaded TMS9919 PSG + TMS5220 LPC speech synthesis mixed directly into Libretro's audio batch callback without background threads or `stop_audioserver.sh`.
+- **Reproducible Cross-Compilation**: Builds inside the pinned Onion OS toolchain Docker container (`onionos/miyoo-toolchain`) or natively on macOS/Linux hosts (`make build-host`).
 
-Then add the TI ROMs (next section), eject the card, and on the Miyoo open **Apps → TI99Sim** or
-**Games → TI-99/4A** (reboot once if the Games entry does not appear).
+---
 
-## TI ROMs and Cartridges (not included)
+## Required System ROMs (Not Included)
 
-This emulator does not include, distribute, or link to any copyrighted console ROMs, system software, or game cartridges.
-To use this emulator, you must supply your own ROM and cartridge images dumped from physical hardware and cartridges you
-legally own. ti99sim stores ROMs and cartridges in its own `.ctg` format:
+> **Important:** No copyrighted TI ROMs, GROMs, or game cartridges are included in this repository. You must supply your own legally obtained TI-99/4A system ROMs.
 
-| Put this on the card | Where | Needed? |
-|---|---|---|
-| `TI-994A.ctg` (console ROM + GROMs) | `Emu/TI99/console/` | **Yes** (dumped from your console) |
-| `ti-disk.ctg` (disk controller), `spchrom.bin` (speech) | `Emu/TI99/console/` | Optional |
-| Game cartridges as `.ctg` | `Roms/TI99/` (shown under **Games**) | For games (dumped from your cartridges) |
+Copy the following files into **`BIOS/ti99sim/`** on your Miyoo SD card (for backward compatibility, `Emu/TI99/console/` is also searched automatically):
 
-How to create `.ctg` files from ROM dumps of cartridges you legally own is covered by TI-99/Sim's own documentation
-([`ti99sim/doc/README.html`](ti99sim/doc/README.html), the `convert-ctg` and `mkcart` tools). The upstream
-[`ti99sim/scripts/setup`](ti99sim/scripts/setup) shows the whole procedure but is written for a Linux desktop. A
-containerised helper that does this for you would be a good contribution (see [Help wanted](#help-wanted)).
+| File | Status | SHA-1 | Description |
+| :--- | :--- | :--- | :--- |
+| `TI-994A.ctg` | **Required** | `562f9d4ef0dc2fb22da3cde6ebcf2da2ebce3eb0` | TI-99/4A Console ROM & GROMs (`0`, `1`, `2`) |
+| `spchrom.bin` | Optional | `58b155f7eb6b0eed7ef6bfd3ab2eb4f1f12d6028` | TMS5220 Speech Synthesizer ROM (required for voice in *Parsec*, *Alpiner*, etc.) |
+| `ti-disk.ctg` | Optional | `092bc2fc0ef2fb8bf9ebcd6fb1bd7f6ef7d22eb4` | TI Disk Controller DSR ROM |
 
-## Controls
+If you only have raw ROM/GROM dumps (`994a_rom.bin`, `994a_grom0.bin`, etc.), use TI-99/Sim's `convert-ctg` utility with `ti99sim/roms/ti-994a.dat` to generate `TI-994A.ctg`.
 
-The Miyoo's buttons reach the emulator as keyboard keys; the layout below is the default and can be changed
-(see [Configuration](#configuration)).
+---
 
-| Button | TI action | Notes |
-|---|---|---|
-| D-pad | Joystick | Directional controls |
-| A | Joystick fire | Primary fire / confirm |
-| B | `1` | Menu option 1 / 1-Player |
-| X | `2` | Cartridge boot selection (`2`) / 2-Player |
-| Y | `Y` | Answers "Yes" to prompts ("Play again (Y/N)?") |
-| L1 | Space | Secondary trigger (Parsec refueling, jump, thrust) |
-| R1 | `N` | Answers "No" to prompts |
-| L2 | `FCTN` + `9` (BACK) | Secondary back/cancel |
-| R2 | `FCTN` + `8` (REDO) | Secondary redo |
-| Start | Enter | Menu confirm / start game |
-| Select | `P` | Pause |
-| Menu (tap) | **Quits the emulator** | Exits cleanly to Onion on release |
-| Menu + R2 (or R1) | **Save State** | Saved per-cartridge in `Emu/TI99/saves/` |
-| Menu + L2 (or L1) | **Load State** | Restores state for active cartridge |
-| Menu + Select / Start | **Reset Console** | Reboots the console |
+## Installation on Miyoo Mini (Onion OS)
 
-There is no on-screen keyboard yet, so programs that need typing (TI BASIC, for example) are not practical.
+### Option A: From a Release / Built Package
 
-## Configuration
+1. Build or download `dist/ti99sim-miyoo.zip` (or copy the contents of `dist/SDCARD/`).
+2. Extract the archive to the **root of your Miyoo Mini SD card** so that `RetroArch/`, `BIOS/`, `Emu/`, and `Roms/` merge with your existing folders:
+   ```text
+   SDCARD/
+   ├── RetroArch/
+   │   └── .retroarch/
+   │       ├── config/
+   │       │   └── TI-99Sim/
+   │       │       └── Parsec.opt        # Preconfigured controls for Parsec
+   │       └── cores/
+   │           ├── ti99sim_libretro.so       # Native Libretro core
+   │           └── ti99sim_libretro.info     # Core metadata & firmware definitions
+   ├── BIOS/
+   │   └── ti99sim/
+   │       ├── TI-994A.ctg                   # <-- Put console ROM here
+   │       ├── spchrom.bin                   # <-- Optional speech ROM
+   │       └── ti-disk.ctg                   # <-- Optional disk DSR ROM
+   ├── Emu/
+   │   └── TI99/
+   │       ├── config.json
+   │       └── launch.sh
+   └── Roms/
+       └── TI99/
+           └── <YourGame>.ctg                # <-- Put game cartridges here
+   ```
+3. Place your TI-99/4A game cartridges (`*.ctg`) in **`Roms/TI99/`**.
+4. Insert the SD card into your Miyoo Mini, press **Select → Refresh Roms** on the Onion OS main menu, and open **Games → TI-99/4A**.
 
-Everything is plain text files on the card, in `Emu/TI99/`; no rebuild is needed.
-
-**`keymap.ini`** maps buttons to TI keys, one `<SDL key name> = <action>` per line. Actions are `FIRE`, `RESET`,
-`SAVE`, `LOAD`, `NONE`, or a TI key (`A`-`Z`, `0`-`9`, `ENTER`, `SPACE`, `COMMA`, `PERIOD`, `SLASH`, `SEMICOLON`, `EQUALS`),
-optionally with a modifier: `FCTN+9`, `SHIFT+1`, `CTRL+C`. The file's comments list which SDL key each Miyoo
-button sends. `make install` keeps an existing `keymap.ini`, so your changes survive upgrades.
-
-**Game-specific keymaps (`<game>.ini`):**
-To customize buttons for a specific game, create an `.ini` file matching the cartridge name (e.g. `Parsec.ini`).
-The emulator checks the following locations in order, applying the first one found over the base `keymap.ini`:
-1. Next to the cartridge file: `Roms/TI99/<game>.ini` (or `<game>.keymap.ini`)
-2. In the keymaps directory: `Emu/TI99/keymaps/<game>.ini`
-3. In the emulator directory: `Emu/TI99/<game>.ini`
-
-*Included:* A bundled `keymaps/Parsec.ini` is provided out of the box, mapping the face buttons `B`, `X`, `Y` to **Lift 1, Lift 2, and Lift 3** (essential for refueling and tight maneuvering) and `L1`/`R1` to `Y`/`N`.
-
-**`launch.sh`** sets environment variables for the emulator:
-
-| Variable | Effect |
-|---|---|
-| `TI_SOFT_SCALE=640x480` | On by default. The emulator scales the 256×192 picture itself (nearest-neighbour), filling the screen with crisp pixels. Delete the line for the Miyoo's own 2× scaling (black borders, soft pixels). |
-| `TI_LOG_KEYS=1` | Log the name of every key press, to find out what a button sends. |
-| `TI_AUDIO_SAMPLES=<n>` | Audio buffer size. **Leave unset**: smaller values give silence on this audio driver. |
-| `TI_INTEGER_SCALE=0`, `TI_WINDOW_SIZE=WxH`, `TI_SCALE_FILTER=linear` | Display experiments; ineffective on the Miyoo's SDL2 renderer, kept for other platforms. |
-
-The emulator writes `ti99sim.log` next to the binary on every launch; it is the first place to look when something
-goes wrong. Each run starts with `display:` and `audio:` lines showing what the SDL driver actually granted.
-
-## Known issues
-
-- **Audio lags the picture** by roughly half a second. The Miyoo's audio driver queues several buffers and the
-  emulator cannot shrink that; smaller buffers silence the sound (the driver's sleep calculation goes negative for
-  buffers under about 11 ms; this reading of its source is not confirmed on hardware). Some of the lag may be inherent
-  to individual games.
-- **Menu quits** the emulator. Onion's freeze-and-switch behaviour only exists for RetroArch (and DraStic), so it is not
-  available here. However, manual save states are supported via the standard Onion hotkeys (`Menu + R2` to save, `Menu + L2` to load),
-  stored per-game in `Emu/TI99/saves/`.
-- **Uneven pixel widths:** at 2.5× scaling some pixel columns and rows are 3 px wide and others 2 px.
-- **No on-screen keyboard**, see above.
-
-## How it works
-
-Why the build looks the way it does, since the Miyoo's SDL2 port is unusual:
-
-- The Onion toolchain image only ships **SDL 1.2**, but TI-99/Sim needs **SDL2**. The build therefore links against
-  [steward-fu's SDL2 port for the Miyoo Mini](https://github.com/steward-fu/sdl2), whose headers and prebuilt libraries
-  `make deps` downloads at a pinned commit and checks against `deps/SHA256SUMS`.
-- That port's renderer draws a window at a whole-number multiple of its size, centred, and blurs any hardware scaling.
-  The emulator therefore scales the picture to 640×480 itself and hands over an image that needs no scaling.
-- The Miyoo has no OpenSSL, so a small built-in SHA-1 replaces it (`TI_NO_OPENSSL`).
-- Audio needs Onion's `audioserver` stopped first, which `launch.sh` does with Onion's own `stop_audioserver.sh`.
-
-The changes to TI-99/Sim itself are small and live in `ti99sim/` as ordinary source: the configurable key map
-(`src/sdl/keymap.cpp`), the software scaler and display options (`src/sdl/bitmap.cpp`, `tms9918a-sdl.cpp`), the
-audio override (`tms9919-sdl.cpp`), and the built-in SHA-1 (`src/core/support.cpp`). A complete diff against upstream
-commit `e360854` is kept in [`upstream-modifications.patch`](upstream-modifications.patch).
-
-## Building and hacking
+### Option B: Direct SD Card / Network Install via Make
 
 ```sh
-make deps                    # download the pinned SDL2 headers and libraries into deps/
-make build                   # cross-compile in Docker -> build/ti99sim-sdl
-make package                 # assemble dist/SDCARD, a tree mirroring the SD card
-make zip                     # ... and zip it
-make install SDCARD=/path    # copy onto a mounted Onion SD card
-make deploy IP=192.168.1.50  # scp zip to Miyoo and extract on device (user: 'onion')
-make patch                   # regenerate upstream-modifications.patch against commit e360854
-make clean                   # remove build output (distclean also removes deps/)
+make build
+make package
+make install SDCARD=/Volumes/SDCARD   # Copies files to SD card
+# Or deploy over Wi-Fi / SSH:
+make deploy IP=192.168.1.100
 ```
 
-To avoid retyping the IP every time when iterating over Wi-Fi, save it once:
+---
+
+## Controls & Built-In On-Screen Keyboard
+
+### Default Gamepad Mapping (Normal Gameplay)
+
+| Miyoo Button | Default TI-99/4A Action | Typical Use |
+| :--- | :--- | :--- |
+| **D-Pad** | **TI Joystick 1** (or `E`/`S`/`D`/`X` in Cursor Mode) | Directional movement (Last-Input-Wins SOCD) |
+| **B** | **Joystick 1 Fire** | Primary action / Shoot |
+| **A** | **`Space`** | Secondary action / Smart Bomb |
+| **Y** | **`1`** | Select Option 1 (1 Player / TI BASIC) |
+| **X** | **`2`** | Select Option 2 (2 Players / Cartridge Module) |
+| **L1** | **`3`** | Select Option 3 / Parsec Lift |
+| **R1** | **`FCTN + 9` (`BACK`)** | Return to previous screen |
+| **L2** | **`FCTN + 4` (`CLEAR`)** | Clear / Break |
+| **R2** | **`FCTN + 6` (`PROCEED`)** | Proceed |
+| **Start** | **`Enter`** | Bypass title screen / Confirm |
+| **Select** | **Toggle On-Screen Keyboard (OSK)** | Show/hide 48-key virtual TI-99/4A keyboard |
+| **Menu** | **Onion OS Game Switcher / RetroArch** | Hold `Menu` + `Select` for RetroArch Quick Menu |
+
+### On-Screen Keyboard (OSK) Controls (When Active)
+
+Press **`Select`** to open the translucent 5-row TI-99/4A virtual keyboard overlay:
+
+- **D-Pad**: Move highlight cursor across keys (wraps around edges).
+- **B**: Hold/press the highlighted key (or toggle modifier keys).
+- **A**: Tap the highlighted key (3-frame pulse) and automatically close the OSK.
+- **Y**: Toggle sticky modifier (`SHF`, `FCT`, `CTL`, `ALP`) on the highlighted modifier key.
+- **X**: Quick Backspace (`FCTN + S`).
+- **L1 / R1**: Toggle OSK dock position between **Bottom** and **Top** of the screen.
+- **Select**: Close OSK.
+
+---
+
+## RetroArch Core Options
+
+Open the RetroArch Quick Menu (**`Menu + Select` → Core Options**) to customize:
+
+- **System**
+  - **System Region / Refresh Rate**: `Auto` / `60 Hz (NTSC)` / `50 Hz (PAL)` (Restart)
+  - **32K Memory Expansion**: `Enabled` (default) / `Disabled`
+  - **TMS5220 Speech Synthesizer**: `Enabled` (default) / `Disabled` (Restart)
+  - **Alpha Lock Joystick Up Fix**: `Enabled` (default, fixes TI-99/4A hardware diode bug so `ALPHA LOCK` never blocks Joystick Up) / `Disabled (Authentic Hardware Bug)`
+- **Video**
+  - **Color Palette**: `Default` / `NTSC` / `RGB` / `Monochrome`
+  - **Video Border / Overscan**: `Cropped (256x192)` / `Full Border (288x216)`
+  - **On-Screen Keyboard Position**: `Bottom` / `Top`
+- **Controls & Keymap**
+  - **D-Pad Mode**: `TI Joystick 1` / `Keyboard Cursor (E/S/D/X)`
+  - **Button A / B / Y / X / L1 / R1 / L2 / R2 / Start / Select Mapping**: Bind any physical button to any TI-99/4A key, number, or `FCTN` shortcut (`JOY_FIRE`, `SPACE`, `ENTER`, `OSK`, `0`–`9`, `A`–`Z`, `FCTN+1..9`, etc.).
+  - **Per-Game Controls**: Use RetroArch's standard **Quick Menu → Core Options → Manage Core Options → Save Game Options** to save a `<Game>.opt` profile for any title. A bundled profile for *Parsec* (`B=1`, `Y=2`, `X=3` Lift, `L=Y`, `R=N` Play Again) is included out of the box in `.retroarch/config/TI-99Sim/Parsec.opt`.
+
+---
+
+## Building from Source
+
+### Prerequisites
+
+- **Docker** (for cross-compiling to ARMv7 Miyoo Mini via the pinned Onion OS toolchain image)
+- Or **Clang / GCC** with C++20 support (for building the native host Libretro core via `make build-host`)
+
+### Build Commands
+
 ```sh
-echo "192.168.1.50" > .miyoo-ip
-make deploy                  # uses .miyoo-ip automatically (alias: make scp)
+# 1. Cross-compile build/ti99sim_libretro.so inside the Onion OS Docker container
+make build
+
+# 2. Assemble dist/SDCARD directory structure
+make package
+
+# 3. Create dist/ti99sim-miyoo.zip ready to extract onto an SD card
+make zip
+
+# Optional: Build native host core (ti99sim/bin/ti99sim_libretro.dylib or .so)
+make build-host
+
+# Optional: Also cross-compile the legacy standalone SDL2 binary (build/ti99sim-sdl)
+make build-sdl
 ```
 
-The toolchain image and every downloaded file are pinned (image by digest, libraries by SHA-256), so builds are
-repeatable: a clean build of this repository produced a byte-identical binary to the one that was tested on the
-device. Edit anything under `ti99sim/`, run `make build`, and copy `build/ti99sim-sdl` to `Emu/TI99/` on the card
-to try it. See [CONTRIBUTING.md](CONTRIBUTING.md).
+---
 
-```
-Makefile                      build, package, install targets
-scripts/                      fetch-deps, build-in-container, package, install
-deps/SHA256SUMS               pinned checksums for the downloaded libraries
-miyoo/SDCARD/                 hand-written files that go on the card (launchers, configs, keymap)
-ti99sim/                      vendored TI-99/Sim source, with the Miyoo changes
-upstream-modifications.patch  diff of all changes against upstream commit e360854
-```
+## Architecture & Upstream Modifications
 
-## TODO / Help wanted
+The emulator source in [`ti99sim/`](ti99sim/) is based on [christianhaitian/ti99sim](https://github.com/christianhaitian/ti99sim) at commit `e360854` (derived from Marc Rousseau's TI-99/Sim v0.16.0).
 
-- More carefully thought out and widely applicable button mappings
-- Onion integration for the Menu button: autosave on exit and resume on launch.
-- Lower audio latency, which probably means patching and rebuilding the SDL2 port's audio driver.
-- Release builds (GitHub Actions) so people can download a ready-made zip.
-- See if we can setup ti99sim as a proper RetroArch core
-- Test on other hardware and firmware (Miyoo Mini Plus, other Onion versions) and with more cartridges.
+All modifications to `ti99sim/` are tracked in [`upstream-modifications.patch`](upstream-modifications.patch) (regenerate with `make patch`):
 
-## Credits and licences
+1. **Libretro Frontend (`ti99sim/src/libretro/`)**:
+   - [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp) & [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp): Libretro API entrypoints, Core Options v2, input polling with Last-Input-Wins SOCD, and symbol visibility isolation (`link.T` / `exports.txt`).
+   - [`ti994a-retro.cpp`](ti99sim/src/libretro/ti994a-retro.cpp): Synchronous frame-sliced `cRetroTI994A` machine coordinator (50,000 CPU cycles/frame at 60 Hz) and deterministic fixed-size binary savestates (`sRetroSaveState`).
+   - [`tms9918a-retro.cpp`](ti99sim/src/libretro/tms9918a-retro.cpp): Software VDP scanline/tile/sprite compositor supporting `RGB565` and `XRGB8888`, cropped (`256×192`) and overscan border (`288×216`) geometries, and 4 color palettes.
+   - [`tms9919-retro.cpp`](ti99sim/src/libretro/tms9919-retro.cpp): Synchronous cycle-accurate 44.1 kHz stereo audio synthesizer mixing TMS9919 4-voice PSG and TMS5220 LPC speech without background threads.
+   - [`osk-retro.cpp`](ti99sim/src/libretro/osk-retro.cpp): Built-in 48-key TI-99/4A virtual keyboard overlay with embedded 5×7 bitmap font.
+2. **Core Engine Enhancements (`ti99sim/src/core/`)**:
+   - Dynamic Libretro `system_directory` (`BIOS/ti99sim/`) and `save_directory` path resolution in [`support.cpp`](ti99sim/src/core/support.cpp) alongside built-in SHA-1 (`-DTI_NO_OPENSSL`).
+   - Configurable TI-99/4A Alpha Lock / Joystick Up hardware diode bug bypass (`SetAlphaLockFix`) in [`tms9901.cpp`](ti99sim/src/core/tms9901.cpp).
 
-- **TI-99/Sim** © Marc Rousseau, [mrousseau.org](https://www.mrousseau.org/programs/ti99sim/). The SDL2 handheld fork by
-  [christianhaitian](https://github.com/christianhaitian/ti99sim) (commit `e360854`) is the base of `ti99sim/`; all modifications
-  are documented in [`upstream-modifications.patch`](upstream-modifications.patch). One upstream file, the third-party CF7+
-  firmware image `roms/cf7a+.bin`, is deliberately not included.
-- The Miyoo Mini **SDL2 port** is by [steward-fu](https://github.com/steward-fu/sdl2) (LGPL-2.1). It is downloaded, not
-  stored in this repository, but the packages `make zip` and `make install` produce include its libraries.
-- The **TI-99/4A menu icon** is derived from a photograph of the console by Rama & Musée Bolo
-  ([Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Texas_Instruments_TI-99-4A_(transparent_bg).png)),
-  licensed under [CC BY-SA 2.0 FR](https://creativecommons.org/licenses/by-sa/2.0/fr/deed.en).
-- The cross-compile **toolchain image** comes from the [Onion OS](https://github.com/OnionUI/Onion) project.
-- This project's own code, scripts and docs are under the **GNU GPL, version 2 or (at your option) any later version**;
-  see [`LICENSE`](LICENSE). Every TI-99/Sim source file carries that same notice. (Upstream's `ti99sim/doc/COPYING` is
-  the text of the *Library* GPL, which does not match the file headers; it is left as shipped.)
-- **Trademarks & Non-Affiliation:** Texas Instruments, TI-99/4A, and related names and trademarks belong to
-  Texas Instruments Incorporated. This project is an independent open-source emulator port and is not affiliated
-  with, endorsed by, or sponsored by Texas Instruments or any software publishers. No TI ROMs or software are included.
+---
+
+## Credits & License
+
+- **TI-99/Sim**: Copyright © 1994–2020 [Marc Rousseau](https://www.mrousseau.org/programs/ti99sim/)
+- **Upstream Linux/Handheld Fork**: [christianhaitian/ti99sim](https://github.com/christianhaitian/ti99sim)
+- **Libretro Core & Miyoo Mini Packaging**: Aaron Szymanski
+
+Licensed under the **GNU General Public License v2.0 or later** ([`LICENSE`](LICENSE)).

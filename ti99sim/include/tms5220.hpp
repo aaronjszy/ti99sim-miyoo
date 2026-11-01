@@ -77,6 +77,8 @@ class cTMS5220 :
 	public virtual iTMS5220,
 	public virtual iStateObject
 {
+	friend class cRetroTI994A;
+
 protected:
 
 	struct sSpeechParams

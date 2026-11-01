@@ -40,6 +40,8 @@ class cTMS9901 :
 	public virtual cDevice,
 	public virtual iTMS9901
 {
+	friend class cRetroTI994A;
+
 	struct sJoystickInfo
 	{
 		bool     isPressed;
@@ -59,6 +61,7 @@ class cTMS9901 :
 	UINT32              m_DecrementClock;
 
 	bool                m_CapsLock;
+	bool                m_AlphaLockFix;
 	int                 m_ColumnSelect;
 	int                 m_HideShift;
 	UINT8               m_StateTable[ VK_MAX ];
@@ -97,6 +100,7 @@ public:
 	virtual void SetJoystickX( int, int ) override;
 	virtual void SetJoystickY( int, int ) override;
 	virtual void SetJoystickButton( int, bool ) override;
+	virtual void SetAlphaLockFix( bool ) override;
 
 protected:
 

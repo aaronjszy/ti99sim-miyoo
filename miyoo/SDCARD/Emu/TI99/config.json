@@ -1,11 +1,12 @@
 {
-	"label":	"TI-99/4A",
-	"icon":	"icon.png",
-	"launch":	"launch.sh",
-	"rompath":	"../../Roms/TI99",
-	"imgpath":	"../../Roms/TI99/Imgs",
-	"shortname":	0,
-	"hidebios":	0,
-	"noaudiofix":	1,
-	"extlist":	"ctg"
+"label": "TI-99/4A",
+"icon": "/mnt/SDCARD/Icons/Default/Emus/TI99.png",
+"iconsel": "/mnt/SDCARD/Icons/Default/Emus/TI99.png",
+"launch": "launch.sh",
+"rompath": "../../Roms/TI99",
+"imgpath": "../../Roms/TI99/Imgs",
+"useswap": 0,
+"shortname": 0,
+"hidebios": 1,
+"extlist": "ctg"
 }

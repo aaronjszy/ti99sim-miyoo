@@ -1,28 +1,11 @@
 #!/bin/bash
-# Cross-compile ti99sim-sdl for the Miyoo Mini. Runs INSIDE the Onion toolchain container with the repository
-# mounted at /work (the Makefile does this: `make build`). Output: build/ti99sim-sdl (stripped).
+# Cross-compile ti99sim_libretro.so (and optionally ti99sim-sdl) for the Miyoo Mini.
+# Runs INSIDE the Onion toolchain container with the repository mounted at /work.
+# Output: build/ti99sim_libretro.so (stripped).
 set -euo pipefail
 
 ROOT=/work
 TC=/opt/miyoomini-toolchain/bin/arm-linux-gnueabihf-
-SDL2_INC=$ROOT/deps/steward-sdl2/sdl2/include
-SDL2_LIB=$ROOT/deps/lib
-
-# ti99sim's makefiles call sdl2-config; point them at the Miyoo SDL2 port instead
-SHIM=$(mktemp -d)
-trap 'rm -rf "$SHIM"' EXIT
-cat > "$SHIM/sdl2-config" <<EOF
-#!/bin/sh
-for a in "\$@"; do
-  case "\$a" in
-    --cflags)  echo "-I$SDL2_INC -D_REENTRANT" ;;
-    --libs)    echo "-L$SDL2_LIB -l:libSDL2-2.0.so.0 -Wl,-rpath-link,$SDL2_LIB" ;;
-    --version) echo 2.0.18 ;;
-  esac
-done
-EOF
-chmod +x "$SHIM/sdl2-config"
-export PATH="$SHIM:$PATH"
 
 export CXX=${TC}g++ CC=${TC}gcc AR=${TC}ar RANLIB=${TC}ranlib
 
@@ -33,9 +16,38 @@ export CFLAGS="-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -DTI_NO_OPENSSL
 export LFLAGS="-static-libstdc++ -static-libgcc -Wl,--allow-shlib-undefined"
 
 cd "$ROOT/ti99sim"
+rm -rf bin src/core/Release src/libretro/Release src/sdl/Release
+
 make -C src/core
-make -C src/sdl
+make -C src/libretro
 
 mkdir -p "$ROOT/build"
-${TC}strip -o "$ROOT/build/ti99sim-sdl" bin/ti99sim-sdl
-file "$ROOT/build/ti99sim-sdl"
+${TC}strip -o "$ROOT/build/ti99sim_libretro.so" bin/ti99sim_libretro.so
+file "$ROOT/build/ti99sim_libretro.so"
+${TC}nm -D --defined-only "$ROOT/build/ti99sim_libretro.so"
+
+if [[ "${BUILD_SDL:-0}" == "1" ]]; then
+  SDL2_INC=$ROOT/deps/steward-sdl2/sdl2/include
+  SDL2_LIB=$ROOT/deps/lib
+
+  SHIM=$(mktemp -d)
+  trap 'rm -rf "$SHIM"' EXIT
+  cat > "$SHIM/sdl2-config" <<EOF
+#!/bin/sh
+for a in "\$@"; do
+  case "\$a" in
+    --cflags)  echo "-I$SDL2_INC -D_REENTRANT" ;;
+    --libs)    echo "-L$SDL2_LIB -l:libSDL2-2.0.so.0 -Wl,-rpath-link,$SDL2_LIB" ;;
+    --version) echo 2.0.18 ;;
+  esac
+done
+EOF
+  chmod +x "$SHIM/sdl2-config"
+  export PATH="$SHIM:$PATH"
+
+  make -C src/sdl
+  ${TC}strip -o "$ROOT/build/ti99sim-sdl" bin/ti99sim-sdl
+  file "$ROOT/build/ti99sim-sdl"
+else
+  rm -f "$ROOT/build/ti99sim-sdl"
+fi

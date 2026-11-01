@@ -17,18 +17,12 @@ CXX      := ccache $(CXX)
 endif
 
 CFLAGS   += --std=c++2a
-CFLAGS   += -fno-strict-aliasing -fexceptions -fPIC
+CFLAGS   += -fno-strict-aliasing -fexceptions -fPIC -fvisibility=hidden
 CFLAGS   += -fdata-sections -ffunction-sections
 CFLAGS   += -funsigned-char
 
-LFLAGS   += -Wl,--gc-sections
-LFLAGS   += -rdynamic
-
-XLIBS    += -lstdc++fs
-
 WARNINGS := -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 WARNINGS += -Wno-implicit-fallthrough
-WARNINGS += -Wno-maybe-uninitialized
 WARNINGS += -Wcast-qual
 
 INCLUDES := -I../../include
@@ -83,6 +77,11 @@ endif
 ifeq ($(OSTYPE),Darwin)
 CXX      := c++
 OS       := OS_MACOSX
+LFLAGS   += -Wl,-dead_strip
+else
+LFLAGS   += -Wl,--gc-sections
+XLIBS    += -lstdc++fs
+WARNINGS += -Wno-maybe-uninitialized
 endif
 
 ifeq ($(OSTYPE),CYGWIN_NT-5.1)

@@ -76,6 +76,8 @@ struct iTMS9901 :
 	virtual void SetJoystickY( int, int ) = 0;
 	virtual void SetJoystickButton( int, bool ) = 0;
 
+	virtual void SetAlphaLockFix( bool ) {}
+
 protected:
 
 	virtual ~iTMS9901( ) {}

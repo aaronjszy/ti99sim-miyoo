@@ -195,7 +195,15 @@ bool cTMS9919::ParseState( const sStateSection &state )
 	state.load( "NoiseColor", m_NoiseColor, SaveFormat::HEXADECIMAL );
 	state.load( "NoiseType", m_NoiseType, SaveFormat::HEXADECIMAL );
 
-	return false;
+	for( uint8_t i = 0; i < 3; i++ )
+	{
+		SetFrequency( i, m_Frequency[ i ] );
+		SetAttenuation( i, m_Attenuation[ i ] );
+	}
+	SetNoise( m_NoiseColor, m_NoiseType );
+	SetAttenuation( 3, m_Attenuation[ 3 ] );
+
+	return true;
 }
 
 std::optional<sStateSection> cTMS9919::SaveState( )

@@ -36,6 +36,7 @@
 
 std::filesystem::path GetCommonPath( );
 std::filesystem::path GetHomePath( );
+void SetLibretroPaths( const std::filesystem::path &systemDir, const std::filesystem::path &saveDir );
 
 std::filesystem::path GetHomePath( const char *path );
 std::filesystem::path CreateHomePath( const char *path = nullptr );

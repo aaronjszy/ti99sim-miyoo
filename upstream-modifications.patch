@@ -1,6 +1,43 @@
+diff -ruN a/ti99sim/Makefile.linux b/ti99sim/Makefile.linux
+--- a/ti99sim/Makefile.linux	2021-02-02 22:55:55
++++ b/ti99sim/Makefile.linux	2026-10-31 22:29:28
+@@ -39,6 +39,7 @@
+ 	src/core \
+ 	src/console \
+ 	src/sdl \
++	src/libretro \
+ 	src/util
+ 
+ install: ti99sim
+diff -ruN a/ti99sim/include/common.hpp b/ti99sim/include/common.hpp
+--- a/ti99sim/include/common.hpp	2021-02-02 22:55:55
++++ b/ti99sim/include/common.hpp	2026-10-31 22:29:28
+@@ -111,6 +111,10 @@
+ 
+ 	#endif
+ 
++#elif defined( OS_MACOSX ) || defined( __APPLE__ )
++
++	#include <machine/endian.h>
++
+ #else
+ 
+ 	// Use the environments endian definitions
+diff -ruN a/ti99sim/include/itms9901.hpp b/ti99sim/include/itms9901.hpp
+--- a/ti99sim/include/itms9901.hpp	2021-02-02 22:55:55
++++ b/ti99sim/include/itms9901.hpp	2026-10-31 22:29:28
+@@ -76,6 +76,8 @@
+ 	virtual void SetJoystickY( int, int ) = 0;
+ 	virtual void SetJoystickButton( int, bool ) = 0;
+ 
++	virtual void SetAlphaLockFix( bool ) {}
++
+ protected:
+ 
+ 	virtual ~iTMS9901( ) {}
 diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 --- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/include/keymap.hpp	2026-10-31 14:31:31
++++ b/ti99sim/include/keymap.hpp	2026-10-31 22:29:28
 @@ -0,0 +1,47 @@
 +//----------------------------------------------------------------------------
 +//
@@ -49,9 +86,677 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +};
 +
 +#endif
+diff -ruN a/ti99sim/include/libretro.h b/ti99sim/include/libretro.h
+--- a/ti99sim/include/libretro.h	1969-12-31 17:00:00
++++ b/ti99sim/include/libretro.h	2026-10-31 22:29:28
+@@ -0,0 +1,653 @@
++/* Copyright (C) 2010-2024 The RetroArch team
++ *
++ * ---------------------------------------------------------------------------------------
++ * The following license statement only applies to this libretro API header (libretro.h).
++ * ---------------------------------------------------------------------------------------
++ *
++ * Permission is hereby granted, free of charge,
++ * to any person obtaining a copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation the rights to
++ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
++ * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
++ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
++ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifndef LIBRETRO_H__
++#define LIBRETRO_H__
++
++#include <stdint.h>
++#include <stddef.h>
++#include <limits.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#ifndef __cplusplus
++#if defined(_MSC_VER) && _MSC_VER < 1800 && !defined(SN_TARGET_PS3)
++#define bool unsigned char
++#define true 1
++#define false 0
++#else
++#include <stdbool.h>
++#endif
++#endif
++
++#ifndef RETRO_CALLCONV
++#  if defined(__GNUC__) && defined(__i386__) && !defined(__x86_64__)
++#    define RETRO_CALLCONV __attribute__((cdecl))
++#  elif defined(_MSC_VER) && defined(_M_IX86) && !defined(_M_X64)
++#    define RETRO_CALLCONV __cdecl
++#  else
++#    define RETRO_CALLCONV
++#  endif
++#endif
++
++#ifndef RETRO_API
++#  if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
++#    ifdef __GNUC__
++#      define RETRO_API RETRO_CALLCONV __attribute__((__dllexport__))
++#    else
++#      define RETRO_API RETRO_CALLCONV __declspec(dllexport)
++#    endif
++#  else
++#    if defined(__GNUC__) && __GNUC__ >= 4
++#      define RETRO_API RETRO_CALLCONV __attribute__((__visibility__("default")))
++#    else
++#      define RETRO_API RETRO_CALLCONV
++#    endif
++#  endif
++#endif
++
++#define RETRO_API_VERSION         1
++
++#define RETRO_DEVICE_TYPE_SHIFT         8
++#define RETRO_DEVICE_MASK               ((1 << RETRO_DEVICE_TYPE_SHIFT) - 1)
++#define RETRO_DEVICE_SUBCLASS(base, id) (((id + 1) << RETRO_DEVICE_TYPE_SHIFT) | base)
++
++#define RETRO_DEVICE_NONE         0
++#define RETRO_DEVICE_JOYPAD       1
++#define RETRO_DEVICE_MOUSE        2
++#define RETRO_DEVICE_KEYBOARD     3
++#define RETRO_DEVICE_LIGHTGUN     4
++#define RETRO_DEVICE_ANALOG       5
++#define RETRO_DEVICE_POINTER      6
++
++#define RETRO_DEVICE_ID_JOYPAD_B        0
++#define RETRO_DEVICE_ID_JOYPAD_Y        1
++#define RETRO_DEVICE_ID_JOYPAD_SELECT   2
++#define RETRO_DEVICE_ID_JOYPAD_START    3
++#define RETRO_DEVICE_ID_JOYPAD_UP       4
++#define RETRO_DEVICE_ID_JOYPAD_DOWN     5
++#define RETRO_DEVICE_ID_JOYPAD_LEFT     6
++#define RETRO_DEVICE_ID_JOYPAD_RIGHT    7
++#define RETRO_DEVICE_ID_JOYPAD_A        8
++#define RETRO_DEVICE_ID_JOYPAD_X        9
++#define RETRO_DEVICE_ID_JOYPAD_L       10
++#define RETRO_DEVICE_ID_JOYPAD_R       11
++#define RETRO_DEVICE_ID_JOYPAD_L2      12
++#define RETRO_DEVICE_ID_JOYPAD_R2      13
++#define RETRO_DEVICE_ID_JOYPAD_L3      14
++#define RETRO_DEVICE_ID_JOYPAD_R3      15
++
++#define RETRO_DEVICE_ID_JOYPAD_MASK    256
++
++#define RETRO_DEVICE_INDEX_ANALOG_LEFT       0
++#define RETRO_DEVICE_INDEX_ANALOG_RIGHT      1
++#define RETRO_DEVICE_INDEX_ANALOG_BUTTON     2
++#define RETRO_DEVICE_ID_ANALOG_X             0
++#define RETRO_DEVICE_ID_ANALOG_Y             1
++
++#define RETRO_REGION_NTSC  0
++#define RETRO_REGION_PAL   1
++
++enum retro_language
++{
++   RETRO_LANGUAGE_ENGLISH             = 0,
++   RETRO_LANGUAGE_JAPANESE            = 1,
++   RETRO_LANGUAGE_FRENCH              = 2,
++   RETRO_LANGUAGE_SPANISH             = 3,
++   RETRO_LANGUAGE_GERMAN              = 4,
++   RETRO_LANGUAGE_ITALIAN             = 5,
++   RETRO_LANGUAGE_DUTCH               = 6,
++   RETRO_LANGUAGE_PORTUGUESE_BRAZIL   = 7,
++   RETRO_LANGUAGE_PORTUGUESE_PORTUGAL = 8,
++   RETRO_LANGUAGE_RUSSIAN             = 9,
++   RETRO_LANGUAGE_KOREAN              = 10,
++   RETRO_LANGUAGE_CHINESE_TRADITIONAL = 11,
++   RETRO_LANGUAGE_CHINESE_SIMPLIFIED  = 12,
++   RETRO_LANGUAGE_ESPERANTO           = 13,
++   RETRO_LANGUAGE_POLISH              = 14,
++   RETRO_LANGUAGE_VIETNAMESE          = 15,
++   RETRO_LANGUAGE_ARABIC              = 16,
++   RETRO_LANGUAGE_GREEK               = 17,
++   RETRO_LANGUAGE_TURKISH             = 18,
++   RETRO_LANGUAGE_SLOVAK              = 19,
++   RETRO_LANGUAGE_PERSIAN             = 20,
++   RETRO_LANGUAGE_HEBREW              = 21,
++   RETRO_LANGUAGE_ASTURIAN            = 22,
++   RETRO_LANGUAGE_FINNISH             = 23,
++   RETRO_LANGUAGE_INDONESIAN          = 24,
++   RETRO_LANGUAGE_SWEDISH             = 25,
++   RETRO_LANGUAGE_UKRAINIAN           = 26,
++   RETRO_LANGUAGE_CZECH               = 27,
++   RETRO_LANGUAGE_CATALAN_VALENCIA    = 28,
++   RETRO_LANGUAGE_CATALAN             = 29,
++   RETRO_LANGUAGE_BRITISH_ENGLISH     = 30,
++   RETRO_LANGUAGE_HUNGARIAN           = 31,
++   RETRO_LANGUAGE_BELARUSIAN          = 32,
++   RETRO_LANGUAGE_GALICIAN            = 33,
++   RETRO_LANGUAGE_NORWEGIAN           = 34,
++   RETRO_LANGUAGE_IRISH               = 35,
++   RETRO_LANGUAGE_LAST,
++   RETRO_LANGUAGE_DUMMY               = INT_MAX
++};
++
++#define RETRO_MEMORY_MASK        0xff
++#define RETRO_MEMORY_SAVE_RAM    0
++#define RETRO_MEMORY_RTC         1
++#define RETRO_MEMORY_SYSTEM_RAM  2
++#define RETRO_MEMORY_VIDEO_RAM   3
++
++enum retro_key
++{
++   RETROK_UNKNOWN        = 0,
++   RETROK_FIRST          = 0,
++   RETROK_BACKSPACE      = 8,
++   RETROK_TAB            = 9,
++   RETROK_CLEAR          = 12,
++   RETROK_RETURN         = 13,
++   RETROK_PAUSE          = 19,
++   RETROK_ESCAPE         = 27,
++   RETROK_SPACE          = 32,
++   RETROK_EXCLAIM        = 33,
++   RETROK_QUOTEDBL       = 34,
++   RETROK_HASH           = 35,
++   RETROK_DOLLAR         = 36,
++   RETROK_AMPERSAND      = 38,
++   RETROK_QUOTE          = 39,
++   RETROK_LEFTPAREN      = 40,
++   RETROK_RIGHTPAREN     = 41,
++   RETROK_ASTERISK       = 42,
++   RETROK_PLUS           = 43,
++   RETROK_COMMA          = 44,
++   RETROK_MINUS          = 45,
++   RETROK_PERIOD         = 46,
++   RETROK_SLASH          = 47,
++   RETROK_0              = 48,
++   RETROK_1              = 49,
++   RETROK_2              = 50,
++   RETROK_3              = 51,
++   RETROK_4              = 52,
++   RETROK_5              = 53,
++   RETROK_6              = 54,
++   RETROK_7              = 55,
++   RETROK_8              = 56,
++   RETROK_9              = 57,
++   RETROK_COLON          = 58,
++   RETROK_SEMICOLON      = 59,
++   RETROK_LESS           = 60,
++   RETROK_EQUALS         = 61,
++   RETROK_GREATER        = 62,
++   RETROK_QUESTION       = 63,
++   RETROK_AT             = 64,
++   RETROK_LEFTBRACKET    = 91,
++   RETROK_BACKSLASH      = 92,
++   RETROK_RIGHTBRACKET   = 93,
++   RETROK_CARET          = 94,
++   RETROK_UNDERSCORE     = 95,
++   RETROK_BACKQUOTE      = 96,
++   RETROK_a              = 97,
++   RETROK_b              = 98,
++   RETROK_c              = 99,
++   RETROK_d              = 100,
++   RETROK_e              = 101,
++   RETROK_f              = 102,
++   RETROK_g              = 103,
++   RETROK_h              = 104,
++   RETROK_i              = 105,
++   RETROK_j              = 106,
++   RETROK_k              = 107,
++   RETROK_l              = 108,
++   RETROK_m              = 109,
++   RETROK_n              = 110,
++   RETROK_o              = 111,
++   RETROK_p              = 112,
++   RETROK_q              = 113,
++   RETROK_r              = 114,
++   RETROK_s              = 115,
++   RETROK_t              = 116,
++   RETROK_u              = 117,
++   RETROK_v              = 118,
++   RETROK_w              = 119,
++   RETROK_x              = 120,
++   RETROK_y              = 121,
++   RETROK_z              = 122,
++   RETROK_LEFTBRACE      = 123,
++   RETROK_BAR            = 124,
++   RETROK_RIGHTBRACE     = 125,
++   RETROK_TILDE          = 126,
++   RETROK_DELETE         = 127,
++
++   RETROK_KP0            = 256,
++   RETROK_KP1            = 257,
++   RETROK_KP2            = 258,
++   RETROK_KP3            = 259,
++   RETROK_KP4            = 260,
++   RETROK_KP5            = 261,
++   RETROK_KP6            = 262,
++   RETROK_KP7            = 263,
++   RETROK_KP8            = 264,
++   RETROK_KP9            = 265,
++   RETROK_KP_PERIOD      = 266,
++   RETROK_KP_DIVIDE      = 267,
++   RETROK_KP_MULTIPLY    = 268,
++   RETROK_KP_MINUS       = 269,
++   RETROK_KP_PLUS        = 270,
++   RETROK_KP_ENTER       = 271,
++   RETROK_KP_EQUALS      = 272,
++
++   RETROK_UP             = 273,
++   RETROK_DOWN           = 274,
++   RETROK_RIGHT          = 275,
++   RETROK_LEFT           = 276,
++   RETROK_INSERT         = 277,
++   RETROK_HOME           = 278,
++   RETROK_END            = 279,
++   RETROK_PAGEUP         = 280,
++   RETROK_PAGEDOWN       = 281,
++
++   RETROK_F1             = 282,
++   RETROK_F2             = 283,
++   RETROK_F3             = 284,
++   RETROK_F4             = 285,
++   RETROK_F5             = 286,
++   RETROK_F6             = 287,
++   RETROK_F7             = 288,
++   RETROK_F8             = 289,
++   RETROK_F9             = 290,
++   RETROK_F10            = 291,
++   RETROK_F11            = 292,
++   RETROK_F12            = 293,
++   RETROK_F13            = 294,
++   RETROK_F14            = 295,
++   RETROK_F15            = 296,
++
++   RETROK_NUMLOCK        = 300,
++   RETROK_CAPSLOCK       = 301,
++   RETROK_SCROLLOCK      = 302,
++   RETROK_RSHIFT         = 303,
++   RETROK_LSHIFT         = 304,
++   RETROK_RCTRL          = 305,
++   RETROK_LCTRL          = 306,
++   RETROK_RALT           = 307,
++   RETROK_LALT           = 308,
++   RETROK_RMETA          = 309,
++   RETROK_LMETA          = 310,
++   RETROK_LSUPER         = 311,
++   RETROK_RSUPER         = 312,
++   RETROK_MODE           = 313,
++   RETROK_COMPOSE        = 314,
++
++   RETROK_HELP           = 315,
++   RETROK_PRINT          = 316,
++   RETROK_SYSREQ         = 317,
++   RETROK_BREAK          = 318,
++   RETROK_MENU           = 319,
++   RETROK_POWER          = 320,
++   RETROK_EURO           = 321,
++   RETROK_UNDO           = 322,
++   RETROK_OEM_102        = 323,
++
++   RETROK_LAST,
++   RETROK_DUMMY          = INT_MAX
++};
++
++enum retro_mod
++{
++   RETROKMOD_NONE       = 0x0000,
++   RETROKMOD_SHIFT      = 0x01,
++   RETROKMOD_CTRL       = 0x02,
++   RETROKMOD_ALT        = 0x04,
++   RETROKMOD_META       = 0x08,
++   RETROKMOD_NUMLOCK    = 0x10,
++   RETROKMOD_CAPSLOCK   = 0x20,
++   RETROKMOD_SCROLLOCK  = 0x40,
++   RETROKMOD_DUMMY      = INT_MAX
++};
++
++#define RETRO_ENVIRONMENT_EXPERIMENTAL 0x10000
++#define RETRO_ENVIRONMENT_PRIVATE 0x20000
++
++#define RETRO_ENVIRONMENT_SET_ROTATION  1
++#define RETRO_ENVIRONMENT_GET_OVERSCAN  2
++#define RETRO_ENVIRONMENT_GET_CAN_DUPE  3
++#define RETRO_ENVIRONMENT_SET_MESSAGE   6
++#define RETRO_ENVIRONMENT_SHUTDOWN      7
++#define RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL 8
++#define RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY 9
++#define RETRO_ENVIRONMENT_SET_PIXEL_FORMAT 10
++#define RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS 11
++#define RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK 12
++#define RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE 13
++#define RETRO_ENVIRONMENT_SET_HW_RENDER 14
++#define RETRO_ENVIRONMENT_GET_VARIABLE 15
++#define RETRO_ENVIRONMENT_SET_VARIABLES 16
++#define RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE 17
++#define RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME 18
++#define RETRO_ENVIRONMENT_GET_LIBRETRO_PATH 19
++#define RETRO_ENVIRONMENT_SET_FRAME_TIME_CALLBACK 21
++#define RETRO_ENVIRONMENT_SET_AUDIO_CALLBACK 22
++#define RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE 23
++#define RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES 24
++#define RETRO_ENVIRONMENT_GET_SENSOR_INTERFACE (25 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE (26 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_LOG_INTERFACE 27
++#define RETRO_ENVIRONMENT_GET_PERF_INTERFACE 28
++#define RETRO_ENVIRONMENT_GET_LOCATION_INTERFACE 29
++#define RETRO_ENVIRONMENT_GET_CONTENT_DIRECTORY 30
++#define RETRO_ENVIRONMENT_GET_CORE_ASSETS_DIRECTORY 30
++#define RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY 31
++#define RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO 32
++#define RETRO_ENVIRONMENT_SET_PROC_ADDRESS_CALLBACK 33
++#define RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO 34
++#define RETRO_ENVIRONMENT_SET_CONTROLLER_INFO 35
++#define RETRO_ENVIRONMENT_SET_MEMORY_MAPS (36 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_SET_GEOMETRY 37
++#define RETRO_ENVIRONMENT_GET_USERNAME 38
++#define RETRO_ENVIRONMENT_GET_LANGUAGE 39
++#define RETRO_ENVIRONMENT_GET_CURRENT_SOFTWARE_FRAMEBUFFER (40 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE (41 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS (42 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE (43 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_SET_serialization_QUIRKS 44
++#define RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS 44
++#define RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT (44 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_VFS_INTERFACE (45 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_LED_INTERFACE (46 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE (47 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_MIDI_INTERFACE (48 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_FASTFORWARDING (49 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE (50 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_INPUT_BITMASKS (51 | RETRO_ENVIRONMENT_EXPERIMENTAL)
++#define RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION 52
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS 53
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL 54
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY 55
++#define RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER 56
++#define RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION 57
++#define RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE 58
++#define RETRO_ENVIRONMENT_GET_MESSAGE_INTERFACE_VERSION 59
++#define RETRO_ENVIRONMENT_SET_MESSAGE_EXT 60
++#define RETRO_ENVIRONMENT_GET_INPUT_MAX_USERS 61
++#define RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK 62
++#define RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY 63
++#define RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE 64
++#define RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE 65
++#define RETRO_ENVIRONMENT_GET_GAME_INFO_EXT 66
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2 67
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL 68
++#define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK 69
++#define RETRO_ENVIRONMENT_SET_VARIABLE 70
++
++#define RETRO_SERIALIZATION_QUIRK_INCOMPLETE (1 << 0)
++#define RETRO_SERIALIZATION_QUIRK_MUST_INITIALIZE (1 << 1)
++#define RETRO_SERIALIZATION_QUIRK_CORE_VARIABLE_SIZE (1 << 2)
++#define RETRO_SERIALIZATION_QUIRK_FRONT_VARIABLE_SIZE (1 << 3)
++#define RETRO_SERIALIZATION_QUIRK_SINGLE_SESSION (1 << 4)
++#define RETRO_SERIALIZATION_QUIRK_ENDIAN_DEPENDENT (1 << 5)
++#define RETRO_SERIALIZATION_QUIRK_PLATFORM_DEPENDENT (1 << 6)
++
++enum retro_log_level
++{
++   RETRO_LOG_DEBUG = 0,
++   RETRO_LOG_INFO,
++   RETRO_LOG_WARN,
++   RETRO_LOG_ERROR,
++   RETRO_LOG_DUMMY = INT_MAX
++};
++
++typedef void (RETRO_CALLCONV *retro_log_printf_t)(enum retro_log_level level,
++      const char *fmt, ...);
++
++struct retro_log_callback
++{
++   retro_log_printf_t log;
++};
++
++struct retro_input_descriptor
++{
++   unsigned port;
++   unsigned device;
++   unsigned index;
++   unsigned id;
++   const char *description;
++};
++
++struct retro_controller_description
++{
++   const char *desc;
++   unsigned id;
++};
++
++struct retro_controller_info
++{
++   const struct retro_controller_description *types;
++   unsigned num_types;
++};
++
++struct retro_system_info
++{
++   const char *library_name;
++   const char *library_version;
++   const char *valid_extensions;
++   bool        need_fullpath;
++   bool        block_extract;
++};
++
++struct retro_game_geometry
++{
++   unsigned base_width;
++   unsigned base_height;
++   unsigned max_width;
++   unsigned max_height;
++   float    aspect_ratio;
++};
++
++struct retro_system_timing
++{
++   double fps;
++   double sample_rate;
++};
++
++struct retro_system_av_info
++{
++   struct retro_game_geometry geometry;
++   struct retro_system_timing timing;
++};
++
++struct retro_variable
++{
++   const char *key;
++   const char *value;
++};
++
++struct retro_core_option_display
++{
++   const char *key;
++   bool        visible;
++};
++
++#define RETRO_NUM_CORE_OPTION_VALUES_MAX 128
++
++struct retro_core_option_value
++{
++   const char *value;
++   const char *label;
++};
++
++struct retro_core_option_definition
++{
++   const char *key;
++   const char *desc;
++   const char *info;
++   struct retro_core_option_value values[RETRO_NUM_CORE_OPTION_VALUES_MAX];
++   const char *default_value;
++};
++
++struct retro_core_options_intl
++{
++   struct retro_core_option_definition *us;
++   struct retro_core_option_definition *local;
++};
++
++struct retro_core_option_v2_category
++{
++   const char *key;
++   const char *desc;
++   const char *info;
++};
++
++struct retro_core_option_v2_definition
++{
++   const char *key;
++   const char *desc;
++   const char *desc_categorized;
++   const char *info;
++   const char *info_categorized;
++   const char *category_key;
++   struct retro_core_option_value values[RETRO_NUM_CORE_OPTION_VALUES_MAX];
++   const char *default_value;
++};
++
++struct retro_core_options_v2
++{
++   struct retro_core_option_v2_category *categories;
++   struct retro_core_option_v2_definition *definitions;
++};
++
++struct retro_core_options_v2_intl
++{
++   struct retro_core_options_v2 *us;
++   struct retro_core_options_v2 *local;
++};
++
++typedef bool (RETRO_CALLCONV *retro_core_options_update_display_callback_t)(void);
++
++struct retro_game_info
++{
++   const char *path;
++   const void *data;
++   size_t      size;
++   const char *meta;
++};
++
++struct retro_message
++{
++   const char *msg;
++   unsigned    frames;
++};
++
++enum retro_message_target
++{
++   RETRO_MESSAGE_TARGET_ALL = 0,
++   RETRO_MESSAGE_TARGET_OSD,
++   RETRO_MESSAGE_TARGET_LOG
++};
++
++enum retro_message_type
++{
++   RETRO_MESSAGE_TYPE_NOTIFICATION = 0,
++   RETRO_MESSAGE_TYPE_NOTIFICATION_ALT,
++   RETRO_MESSAGE_TYPE_STATUS,
++   RETRO_MESSAGE_TYPE_PROGRESS
++};
++
++struct retro_message_ext
++{
++   const char *msg;
++   unsigned duration;
++   unsigned priority;
++   enum retro_log_level level;
++   enum retro_message_target target;
++   enum retro_message_type type;
++   int8_t progress;
++};
++
++enum retro_pixel_format
++{
++   RETRO_PIXEL_FORMAT_0RGB1555 = 0,
++   RETRO_PIXEL_FORMAT_XRGB8888 = 1,
++   RETRO_PIXEL_FORMAT_RGB565   = 2,
++   RETRO_PIXEL_FORMAT_UNKNOWN  = INT_MAX
++};
++
++typedef void (RETRO_CALLCONV *retro_keyboard_event_t)(bool down, unsigned keycode,
++      uint32_t character, uint16_t key_modifiers);
++
++struct retro_keyboard_callback
++{
++   retro_keyboard_event_t callback;
++};
++
++typedef bool (RETRO_CALLCONV *retro_environment_t)(unsigned cmd, void *data);
++typedef void (RETRO_CALLCONV *retro_video_refresh_t)(const void *data, unsigned width,
++      unsigned height, size_t pitch);
++typedef void (RETRO_CALLCONV *retro_audio_sample_t)(int16_t left, int16_t right);
++typedef size_t (RETRO_CALLCONV *retro_audio_sample_batch_t)(const int16_t *data,
++      size_t frames);
++typedef void (RETRO_CALLCONV *retro_input_poll_t)(void);
++typedef int16_t (RETRO_CALLCONV *retro_input_state_t)(unsigned port, unsigned device,
++      unsigned index, unsigned id);
++
++RETRO_API void retro_set_environment(retro_environment_t);
++RETRO_API void retro_set_video_refresh(retro_video_refresh_t);
++RETRO_API void retro_set_audio_sample(retro_audio_sample_t);
++RETRO_API void retro_set_audio_sample_batch(retro_audio_sample_batch_t);
++RETRO_API void retro_set_input_poll(retro_input_poll_t);
++RETRO_API void retro_set_input_state(retro_input_state_t);
++
++RETRO_API void retro_init(void);
++RETRO_API void retro_deinit(void);
++
++RETRO_API unsigned retro_api_version(void);
++
++RETRO_API void retro_get_system_info(struct retro_system_info *info);
++RETRO_API void retro_get_system_av_info(struct retro_system_av_info *info);
++
++RETRO_API void retro_set_controller_port_device(unsigned port, unsigned device);
++
++RETRO_API void retro_reset(void);
++RETRO_API void retro_run(void);
++
++RETRO_API size_t retro_serialize_size(void);
++RETRO_API bool retro_serialize(void *data, size_t size);
++RETRO_API bool retro_unserialize(const void *data, size_t size);
++
++RETRO_API void retro_cheat_reset(void);
++RETRO_API void retro_cheat_set(unsigned index, bool enabled, const char *code);
++
++RETRO_API bool retro_load_game(const struct retro_game_info *game);
++RETRO_API bool retro_load_game_special(unsigned game_type,
++      const struct retro_game_info *info, size_t num_info);
++
++RETRO_API void retro_unload_game(void);
++
++RETRO_API unsigned retro_get_region(void);
++
++RETRO_API void *retro_get_memory_data(unsigned id);
++RETRO_API size_t retro_get_memory_size(unsigned id);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff -ruN a/ti99sim/include/support.hpp b/ti99sim/include/support.hpp
+--- a/ti99sim/include/support.hpp	2021-02-02 22:55:55
++++ b/ti99sim/include/support.hpp	2026-10-31 22:29:28
+@@ -36,6 +36,7 @@
+ 
+ std::filesystem::path GetCommonPath( );
+ std::filesystem::path GetHomePath( );
++void SetLibretroPaths( const std::filesystem::path &systemDir, const std::filesystem::path &saveDir );
+ 
+ std::filesystem::path GetHomePath( const char *path );
+ std::filesystem::path CreateHomePath( const char *path = nullptr );
 diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 --- a/ti99sim/include/ti994a-sdl.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-31 14:31:31
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-31 22:29:28
 @@ -31,6 +31,7 @@
  
  #include <atomic>
@@ -127,11 +832,172 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  
  	void StartThread( );
  	void StopThread( );
+diff -ruN a/ti99sim/include/tms5220.hpp b/ti99sim/include/tms5220.hpp
+--- a/ti99sim/include/tms5220.hpp	2021-02-02 22:55:55
++++ b/ti99sim/include/tms5220.hpp	2026-10-31 22:29:28
+@@ -77,6 +77,8 @@
+ 	public virtual iTMS5220,
+ 	public virtual iStateObject
+ {
++	friend class cRetroTI994A;
++
+ protected:
+ 
+ 	struct sSpeechParams
+diff -ruN a/ti99sim/include/tms9901.hpp b/ti99sim/include/tms9901.hpp
+--- a/ti99sim/include/tms9901.hpp	2021-02-02 22:55:55
++++ b/ti99sim/include/tms9901.hpp	2026-10-31 22:29:28
+@@ -40,6 +40,8 @@
+ 	public virtual cDevice,
+ 	public virtual iTMS9901
+ {
++	friend class cRetroTI994A;
++
+ 	struct sJoystickInfo
+ 	{
+ 		bool     isPressed;
+@@ -59,6 +61,7 @@
+ 	UINT32              m_DecrementClock;
+ 
+ 	bool                m_CapsLock;
++	bool                m_AlphaLockFix;
+ 	int                 m_ColumnSelect;
+ 	int                 m_HideShift;
+ 	UINT8               m_StateTable[ VK_MAX ];
+@@ -97,6 +100,7 @@
+ 	virtual void SetJoystickX( int, int ) override;
+ 	virtual void SetJoystickY( int, int ) override;
+ 	virtual void SetJoystickButton( int, bool ) override;
++	virtual void SetAlphaLockFix( bool ) override;
+ 
+ protected:
+ 
 Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
+diff -ruN a/ti99sim/rules.mak b/ti99sim/rules.mak
+--- a/ti99sim/rules.mak	2021-02-02 22:55:55
++++ b/ti99sim/rules.mak	2026-10-31 22:29:28
+@@ -17,18 +17,12 @@
+ endif
+ 
+ CFLAGS   += --std=c++2a
+-CFLAGS   += -fno-strict-aliasing -fexceptions -fPIC
++CFLAGS   += -fno-strict-aliasing -fexceptions -fPIC -fvisibility=hidden
+ CFLAGS   += -fdata-sections -ffunction-sections
+ CFLAGS   += -funsigned-char
+ 
+-LFLAGS   += -Wl,--gc-sections
+-LFLAGS   += -rdynamic
+-
+-XLIBS    += -lstdc++fs
+-
+ WARNINGS := -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
+ WARNINGS += -Wno-implicit-fallthrough
+-WARNINGS += -Wno-maybe-uninitialized
+ WARNINGS += -Wcast-qual
+ 
+ INCLUDES := -I../../include
+@@ -83,6 +77,11 @@
+ ifeq ($(OSTYPE),Darwin)
+ CXX      := c++
+ OS       := OS_MACOSX
++LFLAGS   += -Wl,-dead_strip
++else
++LFLAGS   += -Wl,--gc-sections
++XLIBS    += -lstdc++fs
++WARNINGS += -Wno-maybe-uninitialized
+ endif
+ 
+ ifeq ($(OSTYPE),CYGWIN_NT-5.1)
+diff -ruN a/ti99sim/src/core/cartridge.cpp b/ti99sim/src/core/cartridge.cpp
+--- a/ti99sim/src/core/cartridge.cpp	2021-02-02 22:55:55
++++ b/ti99sim/src/core/cartridge.cpp	2026-10-31 22:29:28
+@@ -629,7 +629,7 @@
+ 		}
+ 	}
+ 
+-	return false;
++	return true;
+ }
+ 
+ //----------------------------------------------------------------------------
+diff -ruN a/ti99sim/src/core/stateobject.cpp b/ti99sim/src/core/stateobject.cpp
+--- a/ti99sim/src/core/stateobject.cpp	2021-02-02 22:55:55
++++ b/ti99sim/src/core/stateobject.cpp	2026-10-31 22:29:28
+@@ -28,9 +28,11 @@
+ //----------------------------------------------------------------------------
+ 
+ #include <bitset>
++#include <charconv>
+ #include <cstdio>
+ #include <iomanip>
+ #include <fstream>
++#include <sstream>
+ #include "common.hpp"
+ #include "logger.hpp"
+ #include "stateobject.hpp"
+@@ -229,6 +231,9 @@
+ template void sStateSection::store( const std::string &name, const uint32_t &value, SaveFormat format );
+ template void sStateSection::store( const std::string &name, const uint64_t &value, SaveFormat format );
+ template void sStateSection::store( const std::string &name, const int &value, SaveFormat format );
++#if defined( __APPLE__ )
++template void sStateSection::store( const std::string &name, const size_t &value, SaveFormat format );
++#endif
+ 
+ bool sStateSection::hasValue( const std::string &name ) const
+ {
+@@ -319,6 +324,9 @@
+ template void sStateSection::load( const std::string &name, uint32_t &value, SaveFormat format ) const;
+ template void sStateSection::load( const std::string &name, uint64_t &value, SaveFormat format ) const;
+ template void sStateSection::load( const std::string &name, int &value, SaveFormat format ) const;
++#if defined( __APPLE__ )
++template void sStateSection::load( const std::string &name, size_t &value, SaveFormat format ) const;
++#endif
+ 
+ cStateObject::cStateObject( )
+ {
 diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
 --- a/ti99sim/src/core/support.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/support.cpp	2026-10-31 14:31:31
-@@ -148,16 +148,16 @@
++++ b/ti99sim/src/core/support.cpp	2026-10-31 22:29:28
+@@ -51,12 +51,26 @@
+ 
+ constexpr char HOME_DIR[ ] = ".ti99sim";
+ 
++static std::filesystem::path g_LibretroSystemDir{ };
++static std::filesystem::path g_LibretroSaveDir{ };
++
++void SetLibretroPaths( const std::filesystem::path &systemDir, const std::filesystem::path &saveDir )
++{
++	g_LibretroSystemDir = systemDir;
++	g_LibretroSaveDir   = saveDir;
++}
++
+ #if defined( OS_OS2 ) || defined( OS_WINDOWS )
+ 	#include <direct.h>
+ #endif
+ 
+ std::filesystem::path GetCommonPath( )
+ {
++	if( !g_LibretroSystemDir.empty( ))
++	{
++		return g_LibretroSystemDir / "ti99sim";
++	}
++
+ 	static std::filesystem::path common{ };
+ 
+ 	if( common.empty( ))
+@@ -107,6 +121,11 @@
+ 
+ std::filesystem::path GetHomePath( )
+ {
++	if( !g_LibretroSaveDir.empty( ))
++	{
++		return g_LibretroSaveDir;
++	}
++
+ 	static std::filesystem::path home{ };
+ 
+ 	if( home.empty( ))
+@@ -148,16 +167,16 @@
  
  std::filesystem::path CreateHomePath( const char *path )
  {
@@ -151,14 +1017,92 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  	}
  
  	return homePath;
-@@ -416,7 +416,96 @@
+@@ -279,6 +298,28 @@
+ 	std::filesystem::path fullname = directory.empty( ) ? filename : directory / filename;
+ 	std::filesystem::path fullpath;
+ 
++	if( !g_LibretroSystemDir.empty( ))
++	{
++		std::filesystem::path searchRoots[ ] =
++		{
++			g_LibretroSystemDir / "ti99sim",
++			g_LibretroSystemDir,
++			"/mnt/SDCARD/Emu/TI99"
++		};
++
++		for( const auto &root : searchRoots )
++		{
++			if( TryPath( root.string( ), fullname.string( )) == true )
++			{
++				return root / fullname;
++			}
++			if( !directory.empty( ) && ( TryPath( root.string( ), filename.string( )) == true ))
++			{
++				return root / filename;
++			}
++		}
++	}
++
+ 	// Try: ~/.ti99sim/path, /opt/ti99sim/path
+ 	if(( TryPath( fullpath = GetHomePath( ), fullname )   == true ) ||
+ 	   ( TryPath( fullpath = GetCommonPath( ), fullname ) == true ))
+@@ -291,13 +332,19 @@
+ 
+ std::list<std::filesystem::path> LocateFiles( const std::filesystem::path &directory, const std::string &extension )
+ {
+-	static std::filesystem::path paths[ ] =
++	std::vector<std::filesystem::path> paths;
++
++	if( !g_LibretroSystemDir.empty( ))
+ 	{
+-		GetCommonPath( ),	// Try: <install-dir>/path
+-		GetHomePath( ),		// Try: ~/.ti99sim/path
+-		"."					// Try: CWD
+-	};
++		paths.push_back( g_LibretroSystemDir / "ti99sim" );
++		paths.push_back( g_LibretroSystemDir );
++		paths.push_back( "/mnt/SDCARD/Emu/TI99" );
++	}
+ 
++	paths.push_back( GetCommonPath( ));	// Try: <install-dir>/path
++	paths.push_back( GetHomePath( ));	// Try: ~/.ti99sim/path
++	paths.push_back( "." );				// Try: CWD
++
+ 	std::map<std::filesystem::path,std::filesystem::path> files;
+ 
+ 	auto addFile = [&]( auto &entry )
+@@ -312,7 +359,7 @@
+ 		}
+ 	};
+ 
+-	for( auto path : paths )
++	for( auto &path : paths )
+ 	{
+ 		auto testDir = path / directory;
+ 
+@@ -323,6 +370,14 @@
+ 				addFile( entry );
+ 			}
+ 		}
++
++		if( !g_LibretroSystemDir.empty( ) && !directory.empty( ) && std::filesystem::exists( path ))
++		{
++			for( auto &entry : std::filesystem::directory_iterator( path ))
++			{
++				addFile( entry );
++			}
++		}
+ 	}
+ 
+ 	std::list<std::filesystem::path> list;
+@@ -416,7 +471,96 @@
  	return sha1.Digest( );
  }
  
 -#if defined( OS_LINUX )
-+#if defined( OS_LINUX ) && defined( TI_NO_OPENSSL )
++#if defined( TI_NO_OPENSSL )
 +
-+	// Self-contained SHA-1 for targets without OpenSSL (e.g. Miyoo Mini)
++	// Self-contained SHA-1 for targets without OpenSSL (e.g. Miyoo Mini / Libretro)
 +	struct SHA_CTX
 +	{
 +		uint32_t	h[ 5 ]{ 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
@@ -251,7 +1195,7 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  
 diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
 --- a/ti99sim/src/core/ti994a-gk.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-31 22:29:28
 @@ -134,7 +134,7 @@
  
  	auto save = cTI994A::SaveState( );
@@ -283,7 +1227,7 @@ diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
  	}
 diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
 --- a/ti99sim/src/core/ti994a.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/core/ti994a.cpp	2026-10-31 22:29:28
 @@ -741,27 +741,42 @@
  
  	if( save.hasValue( "Console" ))
@@ -350,9 +1294,5234 @@ diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
  
  	return true;
  }
+diff -ruN a/ti99sim/src/core/tms9901.cpp b/ti99sim/src/core/tms9901.cpp
+--- a/ti99sim/src/core/tms9901.cpp	2021-02-02 22:55:55
++++ b/ti99sim/src/core/tms9901.cpp	2026-10-31 22:29:28
+@@ -51,6 +51,7 @@
+ 	m_LastDelta( 0 ),
+ 	m_DecrementClock( 0 ),
+ 	m_CapsLock( false ),
++	m_AlphaLockFix( false ),
+ 	m_ColumnSelect( 0 ),
+ 	m_HideShift( 0 ),
+ 	m_StateTable( ),
+@@ -213,6 +214,23 @@
+ 		else
+ 		{
+ 			// We're in I/O mode
++			if(( address >= 1 ) && ( address <= 15 ) && ( m_PinState[ address ][ 0 ] != 0 ))
++			{
++				if(( m_PinState[ address ][ 1 ] != 1 ) && ( data == 1 ))
++				{
++					m_ActiveInterrupts++;
++					m_pCPU->SignalInterrupt( 1 );
++				}
++				else if(( m_PinState[ address ][ 1 ] == 1 ) && ( data == 0 ))
++				{
++					m_ActiveInterrupts--;
++					if( m_ActiveInterrupts == 0 )
++					{
++						m_pCPU->ClearInterrupt( 1 );
++					}
++				}
++			}
++
+ 			m_PinState[ address ][ 1 ] = ( char ) data;
+ 
+ 			if(( address >= 18 ) && ( address <= 20 ))
+@@ -309,12 +327,9 @@
+ 		}
+ 		else if(( address >= 3 ) && ( address <= 10 ))
+ 		{
+-			if(( m_CapsLock == false ) && ( address == 7 ))
++			if(( m_CapsLock == false ) && ( address == 7 ) && ( m_StateTable[ VK_CAPSLOCK ] != 0 ) && ( !m_AlphaLockFix || ( m_ColumnSelect < 6 )))
+ 			{
+-				if( m_StateTable[ VK_CAPSLOCK ] != 0 )
+-				{
+-					retVal = 0;
+-				}
++				retVal = 0;
+ 			}
+ 			else
+ 			{
+@@ -625,4 +640,9 @@
+ 	DBG_ASSERT(( index >= 0 ) && ( index < 2 ));
+ 
+ 	m_Joystick[ index ].isPressed = value;
++}
++
++void cTMS9901::SetAlphaLockFix( bool enable )
++{
++	m_AlphaLockFix = enable;
+ }
+diff -ruN a/ti99sim/src/core/tms9919.cpp b/ti99sim/src/core/tms9919.cpp
+--- a/ti99sim/src/core/tms9919.cpp	2021-02-02 22:55:55
++++ b/ti99sim/src/core/tms9919.cpp	2026-10-31 22:29:28
+@@ -195,7 +195,15 @@
+ 	state.load( "NoiseColor", m_NoiseColor, SaveFormat::HEXADECIMAL );
+ 	state.load( "NoiseType", m_NoiseType, SaveFormat::HEXADECIMAL );
+ 
+-	return false;
++	for( uint8_t i = 0; i < 3; i++ )
++	{
++		SetFrequency( i, m_Frequency[ i ] );
++		SetAttenuation( i, m_Attenuation[ i ] );
++	}
++	SetNoise( m_NoiseColor, m_NoiseType );
++	SetAttenuation( 3, m_Attenuation[ 3 ] );
++
++	return true;
+ }
+ 
+ std::optional<sStateSection> cTMS9919::SaveState( )
+diff -ruN a/ti99sim/src/libretro/Makefile b/ti99sim/src/libretro/Makefile
+--- a/ti99sim/src/libretro/Makefile	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/Makefile	2026-10-31 22:29:28
+@@ -0,0 +1,50 @@
++# TI-99/sim src/libretro Makefile
++
++PROJECT := ti99sim_libretro
++
++SOURCES := \
++	libretro-core.cpp \
++	osk-retro.cpp \
++	ti994a-retro.cpp \
++	tms9918a-retro.cpp \
++	tms9919-retro.cpp
++
++include ../../rules.mak
++
++ifeq ($(OS),OS_MACOSX)
++EXT        := dylib
++SHARED_FLG := -dynamiclib -Wl,-exported_symbols_list,exports.txt
++else
++EXT        := so
++SHARED_FLG := -shared -Wl,--version-script=link.T -Wl,--no-undefined
++endif
++
++BINDIR  := ../../bin
++TARGET  := $(BINDIR)/$(PROJECT).$(EXT)
++
++LIBDIRS := ../core/$(CFG)
++LIBS    := ../core/$(CFG)/ti-core.a $(XLIBS) -lm
++
++OBJECTS := $(addprefix $(CFG)/,$(SOURCES:.cpp=.o))
++
++all: $(CFG) $(BINDIR) $(TARGET)
++
++$(BINDIR):
++	@mkdir -p $(BINDIR)
++
++clean:
++	@rm -Rf $(CFG)
++	@rm -f $(BINDIR)/ti99sim_libretro.so $(BINDIR)/ti99sim_libretro.dylib
++	@rm -f *.bk *~
++
++dep:
++	@makedepend $(INCLUDES) $(SOURCES) 2> /dev/null
++
++$(TARGET): $(OBJECTS) $(filter %.a,$(LIBS))
++	@echo Linking $(PROJECT).$(EXT)
++	@$(CXX) -o $@ $(SHARED_FLG) $(LFLAGS) $(OBJECTS) $(LIBS)
++
++../core/$(CFG)/ti-core.a:
++	@$(MAKE) -C ../core
++
++-include $(OBJECTS:.o=.dep)
+diff -ruN a/ti99sim/src/libretro/exports.txt b/ti99sim/src/libretro/exports.txt
+--- a/ti99sim/src/libretro/exports.txt	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/exports.txt	2026-10-31 22:29:28
+@@ -0,0 +1,25 @@
++_retro_init
++_retro_deinit
++_retro_api_version
++_retro_get_system_info
++_retro_get_system_av_info
++_retro_set_environment
++_retro_set_video_refresh
++_retro_set_audio_sample
++_retro_set_audio_sample_batch
++_retro_set_input_poll
++_retro_set_input_state
++_retro_set_controller_port_device
++_retro_reset
++_retro_run
++_retro_serialize_size
++_retro_serialize
++_retro_unserialize
++_retro_cheat_reset
++_retro_cheat_set
++_retro_load_game
++_retro_load_game_special
++_retro_unload_game
++_retro_get_region
++_retro_get_memory_data
++_retro_get_memory_size
+diff -ruN a/ti99sim/src/libretro/libretro-core-options.hpp b/ti99sim/src/libretro/libretro-core-options.hpp
+--- a/ti99sim/src/libretro/libretro-core-options.hpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/libretro-core-options.hpp	2026-10-31 22:29:28
+@@ -0,0 +1,345 @@
++//----------------------------------------------------------------------------
++//
++// File:        libretro-core-options.hpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro Core Options v2 definitions with v1/v0 fallback
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef LIBRETRO_CORE_OPTIONS_HPP_
++#define LIBRETRO_CORE_OPTIONS_HPP_
++
++#include <cstring>
++#include "libretro.h"
++
++#define TI99SIM_BUTTON_OPTION_VALUES \
++	{ "JOY_FIRE",     "Joystick Fire" }, \
++	{ "OSK",          "Toggle On-Screen Keyboard" }, \
++	{ "ENTER",        "ENTER" }, \
++	{ "SPACE",        "SPACE" }, \
++	{ "1",            "Key 1" }, \
++	{ "2",            "Key 2" }, \
++	{ "3",            "Key 3" }, \
++	{ "4",            "Key 4" }, \
++	{ "5",            "Key 5" }, \
++	{ "6",            "Key 6" }, \
++	{ "7",            "Key 7" }, \
++	{ "8",            "Key 8" }, \
++	{ "9",            "Key 9" }, \
++	{ "0",            "Key 0" }, \
++	{ "Y",            "Key Y" }, \
++	{ "N",            "Key N" }, \
++	{ "FCTN_PROCEED", "FCTN+6 (Proceed)" }, \
++	{ "FCTN_REDO",    "FCTN+8 (Redo)" }, \
++	{ "FCTN_BACK",    "FCTN+9 (Back)" }, \
++	{ "FCTN_AID",     "FCTN+7 (Aid)" }, \
++	{ "FCTN_CLEAR",   "FCTN+4 (Clear)" }, \
++	{ "FCTN_DEL",     "FCTN+1 (Delete)" }, \
++	{ "FCTN_INS",     "FCTN+2 (Insert)" }, \
++	{ "FCTN_ERASE",   "FCTN+3 (Erase)" }, \
++	{ "FCTN_BEGIN",   "FCTN+5 (Begin)" }, \
++	{ "FCTN_QUIT",    "FCTN+= (Quit / Reset)" }, \
++	{ "ALPHA_LOCK",   "Toggle Alpha Lock" }, \
++	{ "A", "Key A" }, { "B", "Key B" }, { "C", "Key C" }, { "D", "Key D" }, \
++	{ "E", "Key E" }, { "F", "Key F" }, { "G", "Key G" }, { "H", "Key H" }, \
++	{ "I", "Key I" }, { "J", "Key J" }, { "K", "Key K" }, { "L", "Key L" }, \
++	{ "M", "Key M" }, { "O", "Key O" }, { "P", "Key P" }, { "Q", "Key Q" }, \
++	{ "R", "Key R" }, { "S", "Key S" }, { "T", "Key T" }, { "U", "Key U" }, \
++	{ "V", "Key V" }, { "W", "Key W" }, { "X", "Key X" }, { "Z", "Key Z" }, \
++	{ "EQUALS",       "Key =" }, \
++	{ "PERIOD",       "Key ." }, \
++	{ "COMMA",        "Key ," }, \
++	{ "SEMICOLON",    "Key ;" }, \
++	{ "DIVIDE",       "Key /" }, \
++	{ "SHIFT",        "Modifier SHIFT" }, \
++	{ "FCTN",         "Modifier FCTN" }, \
++	{ "CTRL",         "Modifier CTRL" }, \
++	{ "NONE",         "None" }, \
++	{ nullptr, nullptr }
++
++static struct retro_core_option_v2_category option_cats_us[] =
++{
++	{
++		"system",
++		"System",
++		"Configure TI-99/4A hardware region, 32K RAM expansion, TMS5220 speech synthesizer, and Alpha Lock behavior."
++	},
++	{
++		"video",
++		"Video",
++		"Configure TMS9918A color palette and overscan border display."
++	},
++	{
++		"input",
++		"Input",
++		"Configure RetroPad button-to-keyboard bindings and D-pad cursor keys."
++	},
++	{ nullptr, nullptr, nullptr }
++};
++
++static struct retro_core_option_v2_definition option_defs_us[] =
++{
++	{
++		"ti99sim_region",
++		"System Region (Video Refresh Rate)",
++		"Region (Refresh Rate)",
++		"Select NTSC (60 Hz) or PAL (50 Hz) VDP refresh timing.",
++		nullptr,
++		"system",
++		{
++			{ "ntsc", "NTSC (60 Hz)" },
++			{ "pal",  "PAL (50 Hz)" },
++			{ nullptr, nullptr }
++		},
++		"ntsc"
++	},
++	{
++		"ti99sim_ram_32k",
++		"System > 32K Memory Expansion",
++		"32K Memory Expansion",
++		"Enable the TI 32K RAM expansion peripheral at 0x2000-0x3FFF and 0xA000-0xFFFF.",
++		nullptr,
++		"system",
++		{
++			{ "enabled",  "Enabled" },
++			{ "disabled", "Disabled" },
++			{ nullptr, nullptr }
++		},
++		"enabled"
++	},
++	{
++		"ti99sim_speech",
++		"System > TMS5220 Speech Synthesizer",
++		"TMS5220 Speech Synthesizer",
++		"Enable the TI Solid State Speech Synthesizer (requires spchrom.bin in BIOS/ti99sim for phrase ROM games).",
++		nullptr,
++		"system",
++		{
++			{ "enabled",  "Enabled" },
++			{ "disabled", "Disabled" },
++			{ nullptr, nullptr }
++		},
++		"enabled"
++	},
++	{
++		"ti99sim_alphalock_fix",
++		"System > Alpha Lock + Joystick Up Diode Fix",
++		"Alpha Lock + Joystick Up Fix",
++		"Prevent active Alpha Lock from blocking Joystick Up (column 6/7) on the TMS9901 CRU matrix.",
++		nullptr,
++		"system",
++		{
++			{ "enabled",  "Enabled" },
++			{ "disabled", "Disabled (Authentic Hardware Bug)" },
++			{ nullptr, nullptr }
++		},
++		"enabled"
++	},
++	{
++		"ti99sim_palette",
++		"Video > Color Palette",
++		"Color Palette",
++		"Select the TMS9918A color palette.",
++		nullptr,
++		"video",
++		{
++			{ "default", "Default (TI-99/Sim)" },
++			{ "ntsc",    "NTSC" },
++			{ "rgb",     "RGB" },
++			{ "mono",    "Monochrome" },
++			{ nullptr, nullptr }
++		},
++		"default"
++	},
++	{
++		"ti99sim_borders",
++		"Video > Overscan Borders",
++		"Overscan Borders",
++		"Show the TMS9918A backdrop border around the 256x192 active display area (outputs 288x216).",
++		nullptr,
++		"video",
++		{
++			{ "disabled", "Disabled (256x192)" },
++			{ "enabled",  "Enabled (288x216)" },
++			{ nullptr, nullptr }
++		},
++		"disabled"
++	},
++	{
++		"ti99sim_dpad_cursor",
++		"Input > D-Pad Also Presses Cursor Keys",
++		"D-Pad Also Presses Cursor Keys",
++		"Allow the D-pad to simultaneously trigger TI keyboard movement keys alongside Joystick 1.",
++		nullptr,
++		"input",
++		{
++			{ "disabled", "Disabled (Joystick Only)" },
++			{ "esdx",     "E / S / D / X" },
++			{ "arrows",   "FCTN + E / S / D / X (Arrow Keys)" },
++			{ nullptr, nullptr }
++		},
++		"disabled"
++	},
++	{
++		"ti99sim_pad_a",
++		"Input > Button A Mapping",
++		"Button A Mapping",
++		"TI-99/4A action or key bound to RetroPad A.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"JOY_FIRE"
++	},
++	{
++		"ti99sim_pad_b",
++		"Input > Button B Mapping",
++		"Button B Mapping",
++		"TI-99/4A action or key bound to RetroPad B.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"1"
++	},
++	{
++		"ti99sim_pad_y",
++		"Input > Button Y Mapping",
++		"Button Y Mapping",
++		"TI-99/4A action or key bound to RetroPad Y.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"2"
++	},
++	{
++		"ti99sim_pad_x",
++		"Input > Button X Mapping",
++		"Button X Mapping",
++		"TI-99/4A action or key bound to RetroPad X.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"3"
++	},
++	{
++		"ti99sim_pad_start",
++		"Input > Button Start Mapping",
++		"Button Start Mapping",
++		"TI-99/4A action or key bound to RetroPad Start.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"ENTER"
++	},
++	{
++		"ti99sim_pad_select",
++		"Input > Button Select Mapping",
++		"Button Select Mapping",
++		"TI-99/4A action or key bound to RetroPad Select.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"OSK"
++	},
++	{
++		"ti99sim_pad_l",
++		"Input > Button L (L1) Mapping",
++		"Button L (L1) Mapping",
++		"TI-99/4A action or key bound to RetroPad L.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"FCTN_REDO"
++	},
++	{
++		"ti99sim_pad_r",
++		"Input > Button R (R1) Mapping",
++		"Button R (R1) Mapping",
++		"TI-99/4A action or key bound to RetroPad R.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"FCTN_BACK"
++	},
++	{
++		"ti99sim_pad_l2",
++		"Input > Button L2 Mapping",
++		"Button L2 Mapping",
++		"TI-99/4A action or key bound to RetroPad L2.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"Y"
++	},
++	{
++		"ti99sim_pad_r2",
++		"Input > Button R2 Mapping",
++		"Button R2 Mapping",
++		"TI-99/4A action or key bound to RetroPad R2.",
++		nullptr,
++		"input",
++		{ TI99SIM_BUTTON_OPTION_VALUES },
++		"N"
++	},
++	{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, {{0}}, nullptr }
++};
++
++static struct retro_core_options_v2 options_us =
++{
++	option_cats_us,
++	option_defs_us
++};
++
++inline void libretro_set_core_options( retro_environment_t environ_cb )
++{
++	if( !environ_cb )
++	{
++		return;
++	}
++
++	unsigned version = 0;
++	if( !environ_cb( RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version ))
++	{
++		version = 0;
++	}
++
++	if( version >= 2 )
++	{
++		struct retro_core_options_v2_intl core_options_intl = { &options_us, nullptr };
++		if( environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL, &core_options_intl ))
++		{
++			return;
++		}
++		if( environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_us ))
++		{
++			return;
++		}
++	}
++
++	// Fallback for frontends supporting only v1 or v0 core options
++	size_t num_opts = 0;
++	while( option_defs_us[ num_opts ].key != nullptr )
++	{
++		num_opts++;
++	}
++
++	if( version >= 1 )
++	{
++		static struct retro_core_option_definition v1_defs[ 32 ];
++		memset( v1_defs, 0, sizeof( v1_defs ));
++		for( size_t i = 0; i < num_opts && i < 31; i++ )
++		{
++			v1_defs[ i ].key           = option_defs_us[ i ].key;
++			v1_defs[ i ].desc          = option_defs_us[ i ].desc;
++			v1_defs[ i ].info          = option_defs_us[ i ].info;
++			v1_defs[ i ].default_value = option_defs_us[ i ].default_value;
++			memcpy( v1_defs[ i ].values, option_defs_us[ i ].values, sizeof( v1_defs[ i ].values ));
++		}
++		environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &v1_defs );
++	}
++}
++
++#endif
+diff -ruN a/ti99sim/src/libretro/libretro-core.cpp b/ti99sim/src/libretro/libretro-core.cpp
+--- a/ti99sim/src/libretro/libretro-core.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/libretro-core.cpp	2026-10-31 22:29:28
+@@ -0,0 +1,1349 @@
++//----------------------------------------------------------------------------
++//
++// File:        libretro-core.cpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro API implementation for TI-99/Sim
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cctype>
++#include <cstdarg>
++#include <cstdio>
++#include <cstring>
++#include <filesystem>
++#include <fstream>
++#include <string>
++
++#include "libretro.h"
++#include "libretro-core-options.hpp"
++
++#include "common.hpp"
++#include "support.hpp"
++#include "cartridge.hpp"
++#include "device-support.hpp"
++#include "tms5220.hpp"
++#include "tms9918a-retro.hpp"
++#include "tms9919-retro.hpp"
++#include "ti994a-retro.hpp"
++#include "osk-retro.hpp"
++
++#ifndef VERSION
++#define VERSION "0.16.0"
++#endif
++
++namespace
++{
++	// Libretro frontend callbacks
++	retro_environment_t        g_EnvironCb    = nullptr;
++	retro_video_refresh_t      g_VideoCb      = nullptr;
++	retro_audio_sample_t       g_AudioCb      = nullptr;
++	retro_audio_sample_batch_t g_AudioBatchCb = nullptr;
++	retro_input_poll_t         g_InputPollCb  = nullptr;
++	retro_input_state_t        g_InputStateCb = nullptr;
++	retro_log_printf_t         g_LogCb        = nullptr;
++
++	bool g_UseBitmasks = false;
++	bool g_UseRGB565   = true;
++
++	std::filesystem::path g_SystemDir{ };
++	std::filesystem::path g_SaveDir{ };
++	std::filesystem::path g_RomPath{ };
++
++	// Emulator instances
++	cRefPtr<cRetroTMS9918A> g_VDP;
++	cRefPtr<cRetroTMS9919>  g_Sound;
++	cRefPtr<iTMS5220>       g_Speech;
++	cRefPtr<cRetroTI994A>   g_Computer;
++	cRetroOSK               g_OSK;
++
++	int16_t g_AudioBuffer[ 2048 * 2 ];
++
++	// Action binding model for the 10 configurable RetroPad buttons
++	enum class ePadActionType
++	{
++		NONE,
++		JOY_FIRE,
++		TOGGLE_OSK,
++		TOGGLE_ALPHALOCK,
++		TI_KEY
++	};
++
++	struct sPadBinding
++	{
++		ePadActionType type  = ePadActionType::NONE;
++		VIRTUAL_KEY_E  vkey1 = VK_NONE;
++		VIRTUAL_KEY_E  vkey2 = VK_NONE;
++	};
++
++	enum ePadSlot
++	{
++		SLOT_A = 0,
++		SLOT_B,
++		SLOT_Y,
++		SLOT_X,
++		SLOT_START,
++		SLOT_SELECT,
++		SLOT_L,
++		SLOT_R,
++		SLOT_L2,
++		SLOT_R2,
++		SLOT_COUNT
++	};
++
++	constexpr unsigned SlotRetroIds[ SLOT_COUNT ] =
++	{
++		RETRO_DEVICE_ID_JOYPAD_A,
++		RETRO_DEVICE_ID_JOYPAD_B,
++		RETRO_DEVICE_ID_JOYPAD_Y,
++		RETRO_DEVICE_ID_JOYPAD_X,
++		RETRO_DEVICE_ID_JOYPAD_START,
++		RETRO_DEVICE_ID_JOYPAD_SELECT,
++		RETRO_DEVICE_ID_JOYPAD_L,
++		RETRO_DEVICE_ID_JOYPAD_R,
++		RETRO_DEVICE_ID_JOYPAD_L2,
++		RETRO_DEVICE_ID_JOYPAD_R2
++	};
++
++	constexpr const char *SlotOptionKeys[ SLOT_COUNT ] =
++	{
++		"ti99sim_pad_a",
++		"ti99sim_pad_b",
++		"ti99sim_pad_y",
++		"ti99sim_pad_x",
++		"ti99sim_pad_start",
++		"ti99sim_pad_select",
++		"ti99sim_pad_l",
++		"ti99sim_pad_r",
++		"ti99sim_pad_l2",
++		"ti99sim_pad_r2"
++	};
++
++	constexpr const char *SlotDefaultValues[ SLOT_COUNT ] =
++	{
++		"JOY_FIRE",
++		"1",
++		"2",
++		"3",
++		"ENTER",
++		"OSK",
++		"FCTN_REDO",
++		"FCTN_BACK",
++		"Y",
++		"N"
++	};
++
++	// Keysym slots in cTMS9901::m_KSLinkTable (0..511)
++	//   0       : Alpha Lock (VK_CAPSLOCK)
++	//   1..399  : Host keyboard (retro_key mapped into 1..399)
++	//   450..459: RetroPad buttons (SLOT_A..SLOT_R2)
++	//   480..483: D-pad cursor keys (Up/Down/Left/Right)
++	//   490..493: Built-in OSK
++	constexpr int KEYSYM_PAD_BASE  = 450;
++	constexpr int KEYSYM_DPAD_BASE = 480;
++
++	sPadBinding g_PadBindings[ SLOT_COUNT ];
++
++	enum class eDpadCursorMode
++	{
++		DISABLED,
++		ESDX,
++		ARROWS
++	};
++
++	eDpadCursorMode g_DpadCursorMode = eDpadCursorMode::DISABLED;
++
++	// Input state tracking for edge detection and Last-Input-Wins SOCD
++	bool g_PrevSlotPressed[ SLOT_COUNT ] = { };
++	bool g_PrevDpadCursor[ 4 ]           = { };
++	bool g_PrevLeft[ 2 ]                 = { };
++	bool g_PrevRight[ 2 ]                = { };
++	bool g_PrevUp[ 2 ]                   = { };
++	bool g_PrevDown[ 2 ]                 = { };
++	int  g_LastHorizDir[ 2 ]             = { };
++	int  g_LastVertDir[ 2 ]              = { };
++
++	void FallbackLog( enum retro_log_level level, const char *fmt, ... )
++	{
++		( void ) level;
++		va_list args;
++		va_start( args, fmt );
++		vfprintf( stderr, fmt, args );
++		va_end( args );
++	}
++
++	void ShowNotification( const char *message, unsigned durationMs = 3000, enum retro_log_level level = RETRO_LOG_INFO )
++	{
++		if(( g_EnvironCb == nullptr ) || ( message == nullptr ))
++		{
++			return;
++		}
++
++		unsigned msgVer = 0;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_MESSAGE_INTERFACE_VERSION, &msgVer ) && ( msgVer >= 1 ))
++		{
++			struct retro_message_ext ext =
++			{
++				message,
++				durationMs,
++				1,
++				level,
++				RETRO_MESSAGE_TARGET_ALL,
++				RETRO_MESSAGE_TYPE_NOTIFICATION,
++				-1
++			};
++			if( g_EnvironCb( RETRO_ENVIRONMENT_SET_MESSAGE_EXT, &ext ))
++			{
++				return;
++			}
++		}
++
++		struct retro_message msg = { message, 180 };
++		g_EnvironCb( RETRO_ENVIRONMENT_SET_MESSAGE, &msg );
++	}
++
++	std::string Trim( const std::string &s )
++	{
++		size_t b = 0;
++		while(( b < s.size( )) && std::isspace( static_cast<unsigned char>( s[ b ] )))
++		{
++			b++;
++		}
++		size_t e = s.size( );
++		while(( e > b ) && std::isspace( static_cast<unsigned char>( s[ e - 1 ] )))
++		{
++			e--;
++		}
++		return s.substr( b, e - b );
++	}
++
++	std::string ToUpper( std::string s )
++	{
++		for( char &c : s )
++		{
++			c = static_cast<char>( std::toupper( static_cast<unsigned char>( c )));
++		}
++		return s;
++	}
++
++	VIRTUAL_KEY_E ParseSingleVKey( const std::string &token )
++	{
++		std::string u = ToUpper( Trim( token ));
++		if( u.rfind( "VK_", 0 ) == 0 )
++		{
++			u = u.substr( 3 );
++		}
++
++		if(( u.size( ) == 1 ) && ( u[ 0 ] >= 'A' ) && ( u[ 0 ] <= 'Z' ))
++		{
++			return static_cast<VIRTUAL_KEY_E>( VK_A + ( u[ 0 ] - 'A' ));
++		}
++		if(( u.size( ) == 1 ) && ( u[ 0 ] >= '0' ) && ( u[ 0 ] <= '9' ))
++		{
++			return static_cast<VIRTUAL_KEY_E>( VK_0 + ( u[ 0 ] - '0' ));
++		}
++
++		if( u == "ENTER" || u == "RETURN" )         return VK_ENTER;
++		if( u == "SPACE" )                          return VK_SPACE;
++		if( u == "COMMA" || u == "," )              return VK_COMMA;
++		if( u == "PERIOD" || u == "." )             return VK_PERIOD;
++		if( u == "DIVIDE" || u == "SLASH" || u == "/" ) return VK_DIVIDE;
++		if( u == "SEMICOLON" || u == ";" )          return VK_SEMICOLON;
++		if( u == "EQUALS" || u == "=" )             return VK_EQUALS;
++		if( u == "CAPSLOCK" || u == "ALPHALOCK" )   return VK_CAPSLOCK;
++		if( u == "SHIFT" )                          return VK_SHIFT;
++		if( u == "CTRL" || u == "CONTROL" )         return VK_CTRL;
++		if( u == "FCTN" || u == "FUNCTION" || u == "ALT" ) return VK_FCTN;
++
++		return VK_NONE;
++	}
++
++	sPadBinding ParseBindingValue( const char *val )
++	{
++		sPadBinding b;
++		if(( val == nullptr ) || ( val[ 0 ] == '\0' ))
++		{
++			return b;
++		}
++
++		std::string u = ToUpper( Trim( val ));
++
++		if( u == "NONE" )
++		{
++			return b;
++		}
++		if( u == "JOY_FIRE" || u == "FIRE" )
++		{
++			b.type = ePadActionType::JOY_FIRE;
++			return b;
++		}
++		if( u == "OSK" || u == "KEYBOARD" )
++		{
++			b.type = ePadActionType::TOGGLE_OSK;
++			return b;
++		}
++		if( u == "ALPHA_LOCK" || u == "ALPHALOCK_TOGGLE" )
++		{
++			b.type = ePadActionType::TOGGLE_ALPHALOCK;
++			return b;
++		}
++
++		// Named FCTN shortcuts from Core Options
++		if( u == "FCTN_DEL" )     { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_1;      return b; }
++		if( u == "FCTN_INS" )     { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_2;      return b; }
++		if( u == "FCTN_ERASE" )   { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_3;      return b; }
++		if( u == "FCTN_CLEAR" )   { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_4;      return b; }
++		if( u == "FCTN_BEGIN" )   { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_5;      return b; }
++		if( u == "FCTN_PROCEED" ) { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_6;      return b; }
++		if( u == "FCTN_AID" )     { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_7;      return b; }
++		if( u == "FCTN_REDO" )    { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_8;      return b; }
++		if( u == "FCTN_BACK" )    { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_9;      return b; }
++		if( u == "FCTN_QUIT" )    { b.type = ePadActionType::TI_KEY; b.vkey1 = VK_FCTN; b.vkey2 = VK_EQUALS; return b; }
++
++		// Plus-separated combo from .ini files (e.g. "FCTN+8" or "SHIFT+C")
++		auto plusPos = u.find( '+' );
++		if( plusPos != std::string::npos )
++		{
++			VIRTUAL_KEY_E k1 = ParseSingleVKey( u.substr( 0, plusPos ));
++			VIRTUAL_KEY_E k2 = ParseSingleVKey( u.substr( plusPos + 1 ));
++			if( k1 != VK_NONE )
++			{
++				b.type  = ePadActionType::TI_KEY;
++				b.vkey1 = k1;
++				b.vkey2 = k2;
++			}
++			return b;
++		}
++
++		VIRTUAL_KEY_E k = ParseSingleVKey( u );
++		if( k != VK_NONE )
++		{
++			b.type  = ePadActionType::TI_KEY;
++			b.vkey1 = k;
++		}
++		return b;
++	}
++
++	void UpdateCoreOptions( bool isInitialLoad )
++	{
++		if( g_EnvironCb == nullptr )
++		{
++			return;
++		}
++
++		bool geometryChanged = false;
++		bool timingChanged   = false;
++
++		struct retro_variable var = { nullptr, nullptr };
++
++		// 1. System Region
++		var.key   = "ti99sim_region";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			int newHz = ( strcmp( var.value, "pal" ) == 0 ) ? 50 : 60;
++			if(( g_Computer != nullptr ) && ( g_Computer->GetRefreshRate( ) != newHz ))
++			{
++				g_Computer->SetRefreshRate( newHz );
++				timingChanged = true;
++			}
++		}
++
++		// 2. 32K RAM Expansion
++		var.key   = "ti99sim_ram_32k";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			bool enable32K = ( strcmp( var.value, "disabled" ) != 0 );
++			if( g_Computer != nullptr )
++			{
++				g_Computer->Set32KExpansion( enable32K );
++			}
++		}
++
++		// 3. Speech Synthesizer
++		var.key   = "ti99sim_speech";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			bool enableSpeech = ( strcmp( var.value, "disabled" ) != 0 );
++			if( g_Computer != nullptr )
++			{
++				g_Computer->SetSpeechEnabled( enableSpeech );
++			}
++		}
++
++		// 4. Alpha Lock + Joystick Up Diode Fix
++		var.key   = "ti99sim_alphalock_fix";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			bool enableFix = ( strcmp( var.value, "disabled" ) != 0 );
++			if( g_Computer != nullptr )
++			{
++				g_Computer->SetAlphaLockFix( enableFix );
++			}
++		}
++
++		// 5. Color Palette
++		var.key   = "ti99sim_palette";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			eRetroPalette pal = eRetroPalette::DEFAULT;
++			if( strcmp( var.value, "ntsc" ) == 0 )      pal = eRetroPalette::NTSC;
++			else if( strcmp( var.value, "rgb" ) == 0 )  pal = eRetroPalette::RGB;
++			else if( strcmp( var.value, "mono" ) == 0 ) pal = eRetroPalette::MONO;
++
++			if( g_VDP != nullptr )
++			{
++				g_VDP->SetPalette( pal );
++			}
++		}
++
++		// 6. Overscan Borders
++		var.key   = "ti99sim_borders";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			bool showBorders = ( strcmp( var.value, "enabled" ) == 0 );
++			if(( g_VDP != nullptr ) && ( g_VDP->GetShowBorders( ) != showBorders ))
++			{
++				g_VDP->SetShowBorders( showBorders );
++				geometryChanged = true;
++			}
++		}
++
++		// 7. D-Pad Cursor Mode
++		var.key   = "ti99sim_dpad_cursor";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			if( strcmp( var.value, "esdx" ) == 0 )        g_DpadCursorMode = eDpadCursorMode::ESDX;
++			else if( strcmp( var.value, "arrows" ) == 0 ) g_DpadCursorMode = eDpadCursorMode::ARROWS;
++			else                                          g_DpadCursorMode = eDpadCursorMode::DISABLED;
++		}
++
++		// 8. Button Mappings
++		for( int i = 0; i < SLOT_COUNT; i++ )
++		{
++			var.key   = SlotOptionKeys[ i ];
++			var.value = nullptr;
++			const char *optVal = SlotDefaultValues[ i ];
++			if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++			{
++				optVal = var.value;
++			}
++
++			// Release any currently held virtual key on this slot before rebinding
++			if(( g_Computer != nullptr ) && ( g_Computer->GetPIC( ) != nullptr ))
++			{
++				g_Computer->GetPIC( )->VKeyUp( KEYSYM_PAD_BASE + i );
++			}
++
++			g_PadBindings[ i ] = ParseBindingValue( optVal );
++		}
++
++		if( !isInitialLoad && ( geometryChanged || timingChanged ))
++		{
++			struct retro_system_av_info av_info;
++			retro_get_system_av_info( &av_info );
++			if( timingChanged )
++			{
++				g_EnvironCb( RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info );
++			}
++			else
++			{
++				g_EnvironCb( RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info.geometry );
++			}
++		}
++	}
++
++	// Map Libretro keyboard events (physical keyboard / Game Focus mode) to TI-99/4A matrix
++	void RETRO_CALLCONV KeyboardCallback( bool down, unsigned keycode, uint32_t character, uint16_t key_modifiers )
++	{
++		( void ) character;
++		( void ) key_modifiers;
++
++		if(( g_Computer == nullptr ) || ( g_Computer->GetPIC( ) == nullptr ))
++		{
++			return;
++		}
++
++		iTMS9901 *pic = g_Computer->GetPIC( );
++		int sym = static_cast<int>( keycode );
++		if(( sym <= 0 ) || ( sym >= 400 ))
++		{
++			return;
++		}
++
++		if( keycode == RETROK_CAPSLOCK )
++		{
++			if( down )
++			{
++				bool nextState = !g_OSK.IsAlphaLock( );
++				g_OSK.SetAlphaLock( nextState, pic );
++				ShowNotification( nextState ? "Alpha Lock: ON" : "Alpha Lock: OFF", 1500 );
++			}
++			return;
++		}
++
++		if( !down )
++		{
++			pic->VKeyUp( sym );
++			return;
++		}
++
++		if(( keycode >= RETROK_a ) && ( keycode <= RETROK_z ))
++		{
++			pic->VKeysDown( sym, static_cast<VIRTUAL_KEY_E>( VK_A + ( keycode - RETROK_a )));
++			return;
++		}
++		if(( keycode >= RETROK_0 ) && ( keycode <= RETROK_9 ))
++		{
++			pic->VKeysDown( sym, static_cast<VIRTUAL_KEY_E>( VK_0 + ( keycode - RETROK_0 )));
++			return;
++		}
++
++		switch( keycode )
++		{
++			case RETROK_RETURN :
++			case RETROK_KP_ENTER :
++				pic->VKeysDown( sym, VK_ENTER );
++				break;
++			case RETROK_SPACE :
++				pic->VKeysDown( sym, VK_SPACE );
++				break;
++			case RETROK_COMMA :
++				pic->VKeysDown( sym, VK_COMMA );
++				break;
++			case RETROK_PERIOD :
++			case RETROK_KP_PERIOD :
++				pic->VKeysDown( sym, VK_PERIOD );
++				break;
++			case RETROK_SLASH :
++			case RETROK_KP_DIVIDE :
++				pic->VKeysDown( sym, VK_DIVIDE );
++				break;
++			case RETROK_MINUS :
++			case RETROK_KP_MINUS :
++				pic->VKeysDown( sym, VK_SHIFT, VK_DIVIDE );
++				break;
++			case RETROK_SEMICOLON :
++				pic->VKeysDown( sym, VK_SEMICOLON );
++				break;
++			case RETROK_EQUALS :
++			case RETROK_KP_EQUALS :
++				pic->VKeysDown( sym, VK_EQUALS );
++				break;
++			case RETROK_LSHIFT :
++			case RETROK_RSHIFT :
++				pic->VKeysDown( sym, VK_SHIFT );
++				break;
++			case RETROK_LCTRL :
++			case RETROK_RCTRL :
++				pic->VKeysDown( sym, VK_CTRL );
++				break;
++			case RETROK_LALT :
++			case RETROK_RALT :
++			case RETROK_LSUPER :
++			case RETROK_RSUPER :
++				pic->VKeysDown( sym, VK_FCTN );
++				break;
++			case RETROK_UP :
++				pic->VKeysDown( sym, VK_FCTN, VK_E );
++				break;
++			case RETROK_DOWN :
++				pic->VKeysDown( sym, VK_FCTN, VK_X );
++				break;
++			case RETROK_LEFT :
++			case RETROK_BACKSPACE :
++				pic->VKeysDown( sym, VK_FCTN, VK_S );
++				break;
++			case RETROK_RIGHT :
++				pic->VKeysDown( sym, VK_FCTN, VK_D );
++				break;
++			case RETROK_ESCAPE :
++				pic->VKeysDown( sym, VK_FCTN, VK_9 ); // FCTN+9 (BACK)
++				break;
++			case RETROK_F1 :
++				pic->VKeysDown( sym, VK_FCTN, VK_1 );
++				break;
++			case RETROK_F2 :
++				pic->VKeysDown( sym, VK_FCTN, VK_2 );
++				break;
++			case RETROK_F3 :
++				pic->VKeysDown( sym, VK_FCTN, VK_3 );
++				break;
++			case RETROK_F4 :
++				pic->VKeysDown( sym, VK_FCTN, VK_4 );
++				break;
++			case RETROK_F5 :
++				pic->VKeysDown( sym, VK_FCTN, VK_5 );
++				break;
++			case RETROK_F6 :
++				pic->VKeysDown( sym, VK_FCTN, VK_6 );
++				break;
++			case RETROK_F7 :
++				pic->VKeysDown( sym, VK_FCTN, VK_7 );
++				break;
++			case RETROK_F8 :
++				pic->VKeysDown( sym, VK_FCTN, VK_8 );
++				break;
++			case RETROK_F9 :
++				pic->VKeysDown( sym, VK_FCTN, VK_9 );
++				break;
++			case RETROK_F10 :
++				pic->VKeysDown( sym, VK_FCTN, VK_EQUALS );
++				break;
++			default :
++				break;
++		}
++	}
++
++	uint32_t ReadJoypadMask( unsigned port )
++	{
++		if( g_InputStateCb == nullptr )
++		{
++			return 0;
++		}
++
++		if( g_UseBitmasks )
++		{
++			return static_cast<uint32_t>( static_cast<uint16_t>(
++				g_InputStateCb( port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK )));
++		}
++
++		uint32_t mask = 0;
++		for( unsigned id = 0; id <= RETRO_DEVICE_ID_JOYPAD_R3; id++ )
++		{
++			if( g_InputStateCb( port, RETRO_DEVICE_JOYPAD, 0, id ))
++			{
++				mask |= ( 1u << id );
++			}
++		}
++		return mask;
++	}
++
++	void ApplyPortDirection( unsigned port, uint32_t padMask, int &outX, int &outY, bool &rawUp, bool &rawDown, bool &rawLeft, bool &rawRight )
++	{
++		constexpr int16_t ANALOG_DEADZONE = 0x3000;
++
++		int16_t analogX = 0;
++		int16_t analogY = 0;
++		if( g_InputStateCb != nullptr )
++		{
++			analogX = g_InputStateCb( port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X );
++			analogY = g_InputStateCb( port, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y );
++		}
++
++		rawUp    = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_UP    )) != 0 ) || ( analogY < -ANALOG_DEADZONE );
++		rawDown  = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_DOWN  )) != 0 ) || ( analogY >  ANALOG_DEADZONE );
++		rawLeft  = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_LEFT  )) != 0 ) || ( analogX < -ANALOG_DEADZONE );
++		rawRight = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_RIGHT )) != 0 ) || ( analogX >  ANALOG_DEADZONE );
++
++		// Last-Input-Wins SOCD resolution
++		if( rawLeft && !g_PrevLeft[ port ] )
++		{
++			g_LastHorizDir[ port ] = -1;
++		}
++		if( rawRight && !g_PrevRight[ port ] )
++		{
++			g_LastHorizDir[ port ] = 1;
++		}
++		if( rawUp && !g_PrevUp[ port ] )
++		{
++			g_LastVertDir[ port ] = 1;
++		}
++		if( rawDown && !g_PrevDown[ port ] )
++		{
++			g_LastVertDir[ port ] = -1;
++		}
++
++		g_PrevLeft [ port ] = rawLeft;
++		g_PrevRight[ port ] = rawRight;
++		g_PrevUp   [ port ] = rawUp;
++		g_PrevDown [ port ] = rawDown;
++
++		if( rawLeft && rawRight )
++		{
++			outX = ( g_LastHorizDir[ port ] != 0 ) ? g_LastHorizDir[ port ] : 0;
++		}
++		else if( rawLeft )
++		{
++			outX = -1;
++			g_LastHorizDir[ port ] = -1;
++		}
++		else if( rawRight )
++		{
++			outX = 1;
++			g_LastHorizDir[ port ] = 1;
++		}
++		else
++		{
++			outX = 0;
++			g_LastHorizDir[ port ] = 0;
++		}
++
++		// Note: cTMS9901::ReadCRU expects y_Axis > 0 for Joystick Up (row 7) and y_Axis < 0 for Joystick Down (row 6)
++		if( rawUp && rawDown )
++		{
++			outY = ( g_LastVertDir[ port ] != 0 ) ? g_LastVertDir[ port ] : 0;
++		}
++		else if( rawUp )
++		{
++			outY = 1;
++			g_LastVertDir[ port ] = 1;
++		}
++		else if( rawDown )
++		{
++			outY = -1;
++			g_LastVertDir[ port ] = -1;
++		}
++		else
++		{
++			outY = 0;
++			g_LastVertDir[ port ] = 0;
++		}
++	}
++
++	void PollAndApplyInput( )
++	{
++		if( g_InputPollCb != nullptr )
++		{
++			g_InputPollCb( );
++		}
++
++		if(( g_Computer == nullptr ) || ( g_Computer->GetPIC( ) == nullptr ))
++		{
++			return;
++		}
++
++		iTMS9901 *pic = g_Computer->GetPIC( );
++
++		uint32_t mask0 = ReadJoypadMask( 0 );
++		uint32_t mask1 = ReadJoypadMask( 1 );
++
++		int  joy0X = 0, joy0Y = 0;
++		bool rawUp0 = false, rawDown0 = false, rawLeft0 = false, rawRight0 = false;
++		ApplyPortDirection( 0, mask0, joy0X, joy0Y, rawUp0, rawDown0, rawLeft0, rawRight0 );
++
++		int  joy1X = 0, joy1Y = 0;
++		bool rawUp1 = false, rawDown1 = false, rawLeft1 = false, rawRight1 = false;
++		ApplyPortDirection( 1, mask1, joy1X, joy1Y, rawUp1, rawDown1, rawLeft1, rawRight1 );
++
++		// Check if any button bound to TOGGLE_OSK was just pressed on Port 0
++		for( int i = 0; i < SLOT_COUNT; i++ )
++		{
++			if( g_PadBindings[ i ].type == ePadActionType::TOGGLE_OSK )
++			{
++				bool pressed = ( mask0 & ( 1u << SlotRetroIds[ i ] )) != 0;
++				if( pressed && !g_PrevSlotPressed[ i ] )
++				{
++					// Release any held pad keys before entering/leaving OSK
++					for( int s = 0; s < SLOT_COUNT; s++ )
++					{
++						pic->VKeyUp( KEYSYM_PAD_BASE + s );
++					}
++					for( int d = 0; d < 4; d++ )
++					{
++						pic->VKeyUp( KEYSYM_DPAD_BASE + d );
++						g_PrevDpadCursor[ d ] = false;
++					}
++					g_OSK.Toggle( pic );
++				}
++				g_PrevSlotPressed[ i ] = pressed;
++			}
++		}
++
++		// When OSK is active, route Port 0 inputs exclusively to the OSK
++		if( g_OSK.IsActive( ))
++		{
++			pic->SetJoystickX( 0, 0 );
++			pic->SetJoystickY( 0, 0 );
++			pic->SetJoystickButton( 0, false );
++
++			cRetroOSK::sPadInput oskInput =
++			{
++				joy0Y > 0,
++				joy0Y < 0,
++				joy0X < 0,
++				joy0X > 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_A     )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_B     )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_X     )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_Y     )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_START )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_L     )) != 0,
++				( mask0 & ( 1u << RETRO_DEVICE_ID_JOYPAD_R     )) != 0
++			};
++			g_OSK.Update( oskInput, pic );
++
++			for( int i = 0; i < SLOT_COUNT; i++ )
++			{
++				if( g_PadBindings[ i ].type != ePadActionType::TOGGLE_OSK )
++				{
++					g_PrevSlotPressed[ i ] = ( mask0 & ( 1u << SlotRetroIds[ i ] )) != 0;
++				}
++			}
++			return;
++		}
++
++		// Apply Joystick 1 & Joystick 2 axes
++		pic->SetJoystickX( 0, joy0X );
++		pic->SetJoystickY( 0, joy0Y );
++
++		pic->SetJoystickX( 1, joy1X );
++		pic->SetJoystickY( 1, joy1Y );
++		pic->SetJoystickButton( 1, ( mask1 & ( 1u << RETRO_DEVICE_ID_JOYPAD_A )) != 0 );
++
++		// Optional D-pad cursor keys (E/S/D/X or FCTN+E/S/D/X)
++		bool curDirs[ 4 ] =
++		{
++			( g_DpadCursorMode != eDpadCursorMode::DISABLED ) && ( joy0Y > 0 ), // Up    -> E
++			( g_DpadCursorMode != eDpadCursorMode::DISABLED ) && ( joy0Y < 0 ), // Down  -> X
++			( g_DpadCursorMode != eDpadCursorMode::DISABLED ) && ( joy0X < 0 ), // Left  -> S
++			( g_DpadCursorMode != eDpadCursorMode::DISABLED ) && ( joy0X > 0 )  // Right -> D
++		};
++		constexpr VIRTUAL_KEY_E CursorVKeys[ 4 ] = { VK_E, VK_X, VK_S, VK_D };
++
++		for( int d = 0; d < 4; d++ )
++		{
++			if( curDirs[ d ] != g_PrevDpadCursor[ d ] )
++			{
++				if( curDirs[ d ] )
++				{
++					if( g_DpadCursorMode == eDpadCursorMode::ARROWS )
++					{
++						pic->VKeysDown( KEYSYM_DPAD_BASE + d, VK_FCTN, CursorVKeys[ d ] );
++					}
++					else
++					{
++						pic->VKeysDown( KEYSYM_DPAD_BASE + d, CursorVKeys[ d ] );
++					}
++				}
++				else
++				{
++					pic->VKeyUp( KEYSYM_DPAD_BASE + d );
++				}
++				g_PrevDpadCursor[ d ] = curDirs[ d ];
++			}
++		}
++
++		// Process the 10 configurable Port 0 buttons
++		bool joy0Fire = false;
++		for( int i = 0; i < SLOT_COUNT; i++ )
++		{
++			const sPadBinding &binding = g_PadBindings[ i ];
++			bool pressed = ( mask0 & ( 1u << SlotRetroIds[ i ] )) != 0;
++
++			switch( binding.type )
++			{
++				case ePadActionType::JOY_FIRE :
++					if( pressed )
++					{
++						joy0Fire = true;
++					}
++					g_PrevSlotPressed[ i ] = pressed;
++					break;
++
++				case ePadActionType::TOGGLE_ALPHALOCK :
++					if( pressed && !g_PrevSlotPressed[ i ] )
++					{
++						bool nextState = !g_OSK.IsAlphaLock( );
++						g_OSK.SetAlphaLock( nextState, pic );
++						ShowNotification( nextState ? "Alpha Lock: ON" : "Alpha Lock: OFF", 1500 );
++					}
++					g_PrevSlotPressed[ i ] = pressed;
++					break;
++
++				case ePadActionType::TI_KEY :
++					if( pressed != g_PrevSlotPressed[ i ] )
++					{
++						if( pressed )
++						{
++							pic->VKeysDown( KEYSYM_PAD_BASE + i, binding.vkey1, binding.vkey2 );
++						}
++						else
++						{
++							pic->VKeyUp( KEYSYM_PAD_BASE + i );
++						}
++						g_PrevSlotPressed[ i ] = pressed;
++					}
++					break;
++
++				case ePadActionType::TOGGLE_OSK :
++				case ePadActionType::NONE :
++					g_PrevSlotPressed[ i ] = pressed;
++					break;
++			}
++		}
++
++		pic->SetJoystickButton( 0, joy0Fire );
++	}
++
++	void SetInputDescriptors( )
++	{
++		if( g_EnvironCb == nullptr )
++		{
++			return;
++		}
++
++		static const struct retro_input_descriptor desc[] =
++		{
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Joystick 1 Left" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Joystick 1 Up" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Joystick 1 Down" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Joystick 1 Right" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "Joystick 1 Fire / Custom A" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,      "Key 1 (Start/Select) / Custom B" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "Key 2 (Start/Select) / Custom Y" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,      "Key 3 (Option) / Custom X" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "ENTER / Custom Start" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Toggle On-Screen Keyboard / Custom Select" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,      "FCTN+8 (Redo) / Custom L" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,      "FCTN+9 (Back) / Custom R" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2,     "Key Y / Custom L2" },
++			{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2,     "Key N / Custom R2" },
++			{ 0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X, "Joystick 1 Analog X" },
++			{ 0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y, "Joystick 1 Analog Y" },
++
++			{ 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "Joystick 2 Left" },
++			{ 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,     "Joystick 2 Up" },
++			{ 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,   "Joystick 2 Down" },
++			{ 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT,  "Joystick 2 Right" },
++			{ 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,      "Joystick 2 Fire" },
++			{ 0, 0, 0, 0, nullptr }
++		};
++
++		g_EnvironCb( RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, const_cast<struct retro_input_descriptor *>( desc ));
++	}
++}
++
++extern "C"
++{
++
++RETRO_API unsigned retro_api_version( void )
++{
++	return RETRO_API_VERSION;
++}
++
++RETRO_API void retro_get_system_info( struct retro_system_info *info )
++{
++	if( info == nullptr )
++	{
++		return;
++	}
++	memset( info, 0, sizeof( *info ));
++	info->library_name     = "TI-99Sim";
++	info->library_version  = VERSION;
++	info->valid_extensions = "ctg";
++	info->need_fullpath    = true;
++	info->block_extract    = false;
++}
++
++RETRO_API void retro_set_environment( retro_environment_t cb )
++{
++	g_EnvironCb = cb;
++	if( cb == nullptr )
++	{
++		return;
++	}
++
++	bool noGame = true;
++	cb( RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &noGame );
++
++	libretro_set_core_options( cb );
++
++	static const struct retro_controller_description controllers[] =
++	{
++		{ "TI-99/4A Joystick + Keypad", RETRO_DEVICE_JOYPAD },
++		{ nullptr, 0 }
++	};
++
++	static const struct retro_controller_info ports[] =
++	{
++		{ controllers, 1 },
++		{ controllers, 1 },
++		{ nullptr, 0 }
++	};
++
++	cb( RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, const_cast<struct retro_controller_info *>( ports ));
++}
++
++RETRO_API void retro_set_video_refresh( retro_video_refresh_t cb )
++{
++	g_VideoCb = cb;
++}
++
++RETRO_API void retro_set_audio_sample( retro_audio_sample_t cb )
++{
++	g_AudioCb = cb;
++}
++
++RETRO_API void retro_set_audio_sample_batch( retro_audio_sample_batch_t cb )
++{
++	g_AudioBatchCb = cb;
++}
++
++RETRO_API void retro_set_input_poll( retro_input_poll_t cb )
++{
++	g_InputPollCb = cb;
++}
++
++RETRO_API void retro_set_input_state( retro_input_state_t cb )
++{
++	g_InputStateCb = cb;
++}
++
++RETRO_API void retro_set_controller_port_device( unsigned port, unsigned device )
++{
++	( void ) port;
++	( void ) device;
++}
++
++RETRO_API void retro_init( void )
++{
++	struct retro_log_callback log = { nullptr };
++	if(( g_EnvironCb != nullptr ) && g_EnvironCb( RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log ) && ( log.log != nullptr ))
++	{
++		g_LogCb = log.log;
++	}
++	else
++	{
++		g_LogCb = FallbackLog;
++	}
++
++	const char *sysDir  = nullptr;
++	const char *saveDir = nullptr;
++	if( g_EnvironCb != nullptr )
++	{
++		g_EnvironCb( RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &sysDir );
++		g_EnvironCb( RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &saveDir );
++	}
++
++	g_SystemDir = ( sysDir && sysDir[ 0 ] )   ? std::filesystem::path( sysDir )  : std::filesystem::path( "." );
++	g_SaveDir   = ( saveDir && saveDir[ 0 ] ) ? std::filesystem::path( saveDir ) : std::filesystem::path( "." );
++
++	SetLibretroPaths( g_SystemDir, g_SaveDir );
++
++	g_UseBitmasks = false;
++	if( g_EnvironCb != nullptr )
++	{
++		bool bitmasks = false;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, &bitmasks ) && bitmasks )
++		{
++			g_UseBitmasks = true;
++		}
++	}
++}
++
++RETRO_API void retro_deinit( void )
++{
++	g_Computer = nullptr;
++	g_Speech   = nullptr;
++	g_Sound    = nullptr;
++	g_VDP      = nullptr;
++}
++
++RETRO_API void retro_get_system_av_info( struct retro_system_av_info *info )
++{
++	if( info == nullptr )
++	{
++		return;
++	}
++
++	unsigned width  = ( g_VDP != nullptr ) ? g_VDP->GetOutputWidth( )  : VDP_WIDTH;
++	unsigned height = ( g_VDP != nullptr ) ? g_VDP->GetOutputHeight( ) : VDP_HEIGHT;
++	int      hz     = ( g_Computer != nullptr ) ? g_Computer->GetRefreshRate( ) : 60;
++
++	memset( info, 0, sizeof( *info ));
++	info->geometry.base_width   = width;
++	info->geometry.base_height  = height;
++	info->geometry.max_width    = RETRO_VDP_BORDER_WIDTH;
++	info->geometry.max_height   = RETRO_VDP_BORDER_HEIGHT;
++	info->geometry.aspect_ratio = 4.0f / 3.0f;
++
++	info->timing.fps         = static_cast<double>( hz );
++	info->timing.sample_rate = 44100.0;
++}
++
++RETRO_API bool retro_load_game( const struct retro_game_info *game )
++{
++	// Negotiate pixel format (RGB565 preferred for Miyoo Mini, fallback to XRGB8888)
++	g_UseRGB565 = true;
++	if( g_EnvironCb != nullptr )
++	{
++		enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
++		if( !g_EnvironCb( RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt ))
++		{
++			fmt = RETRO_PIXEL_FORMAT_XRGB8888;
++			if( g_EnvironCb( RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt ))
++			{
++				g_UseRGB565 = false;
++			}
++		}
++
++		uint64_t quirks = 0;
++		g_EnvironCb( RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &quirks );
++
++		struct retro_keyboard_callback kb_cb = { KeyboardCallback };
++		g_EnvironCb( RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK, &kb_cb );
++	}
++
++	SetInputDescriptors( );
++
++	// Refresh system/save directories in case frontend set them after retro_init
++	const char *sysDir  = nullptr;
++	const char *saveDir = nullptr;
++	if( g_EnvironCb != nullptr )
++	{
++		g_EnvironCb( RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY, &sysDir );
++		g_EnvironCb( RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &saveDir );
++	}
++	if( sysDir && sysDir[ 0 ] )   g_SystemDir = sysDir;
++	if( saveDir && saveDir[ 0 ] ) g_SaveDir   = saveDir;
++	SetLibretroPaths( g_SystemDir, g_SaveDir );
++
++	// Locate TI-994A.ctg console ROM
++	std::string consolePath = LocateCartridge( "console", "TI-994A.ctg",
++		{
++			"0264512c7d9e7fa091a48e5c8734782ea031a52d",
++			"16e275faae427465ba4dd4c2bf8569f6546d32dd"
++		} );
++
++	if( consolePath.empty( ))
++	{
++		g_LogCb( RETRO_LOG_ERROR, "[ti99sim] Unable to locate console ROM 'TI-994A.ctg' in '%s/ti99sim/' or '/mnt/SDCARD/Emu/TI99/console/'!\n", g_SystemDir.c_str( ));
++		ShowNotification( "Missing TI-994A.ctg! Copy console ROMs to BIOS/ti99sim/", 5000, RETRO_LOG_ERROR );
++		return false;
++	}
++
++	cRefPtr<cCartridge> consoleROM = new cCartridge( consolePath );
++	if( !consoleROM->IsValid( ))
++	{
++		g_LogCb( RETRO_LOG_ERROR, "[ti99sim] Console ROM '%s' is invalid!\n", consolePath.c_str( ));
++		ShowNotification( "Invalid TI-994A.ctg console ROM!", 5000, RETRO_LOG_ERROR );
++		return false;
++	}
++
++	g_LogCb( RETRO_LOG_INFO, "[ti99sim] Loaded console ROM '%s' (%s)\n", consoleROM->GetFileName( ), consoleROM->GetTitle( ) ? consoleROM->GetTitle( ) : "" );
++
++	g_VDP = new cRetroTMS9918A( 60 );
++	g_VDP->SetUseRGB565( g_UseRGB565 );
++
++	g_Sound  = new cRetroTMS9919( 44100 );
++	g_Speech = new cTMS5220;
++
++	g_Computer = new cRetroTI994A( consoleROM, g_VDP, g_Sound, g_Speech, true );
++
++	// Load optional peripheral DSR ROMs (e.g. ti-disk.ctg) if present in BIOS
++	LoadDevices( g_Computer, []( const char *name )
++	{
++		if( strcmp( name, "cf7+.ctg" ) == 0 )     return false;
++		if( strcmp( name, "ti-pcard.ctg" ) == 0 ) return false;
++		return true;
++	} );
++
++	g_RomPath.clear( );
++	cRefPtr<cCartridge> gameCtg = nullptr;
++
++	if(( game != nullptr ) && ( game->path != nullptr ) && ( game->path[ 0 ] != '\0' ))
++	{
++		g_RomPath = game->path;
++		gameCtg   = new cCartridge( g_RomPath.string( ));
++		if( !gameCtg->IsValid( ))
++		{
++			g_LogCb( RETRO_LOG_ERROR, "[ti99sim] Failed to load cartridge '%s'\n", game->path );
++			ShowNotification( "Failed to load TI-99/4A cartridge (.ctg)!", 4000, RETRO_LOG_ERROR );
++			g_Computer = nullptr;
++			g_Speech   = nullptr;
++			g_Sound    = nullptr;
++			g_VDP      = nullptr;
++			return false;
++		}
++
++		g_LogCb( RETRO_LOG_INFO, "[ti99sim] Inserted cartridge '%s' (%s)\n", gameCtg->GetFileName( ), gameCtg->GetTitle( ) ? gameCtg->GetTitle( ) : "" );
++		g_Computer->InsertCartridge( gameCtg );
++	}
++
++	g_OSK.Reset( g_Computer->GetPIC( ));
++	g_OSK.SetAlphaLock( true, g_Computer->GetPIC( ));
++
++	memset( g_PrevSlotPressed, 0, sizeof( g_PrevSlotPressed ));
++	memset( g_PrevDpadCursor, 0, sizeof( g_PrevDpadCursor ));
++	memset( g_PrevLeft, 0, sizeof( g_PrevLeft ));
++	memset( g_PrevRight, 0, sizeof( g_PrevRight ));
++	memset( g_PrevUp, 0, sizeof( g_PrevUp ));
++	memset( g_PrevDown, 0, sizeof( g_PrevDown ));
++	memset( g_LastHorizDir, 0, sizeof( g_LastHorizDir ));
++	memset( g_LastVertDir, 0, sizeof( g_LastVertDir ));
++
++	UpdateCoreOptions( true );
++
++	return true;
++}
++
++RETRO_API bool retro_load_game_special( unsigned game_type, const struct retro_game_info *info, size_t num_info )
++{
++	( void ) game_type;
++	( void ) info;
++	( void ) num_info;
++	return false;
++}
++
++RETRO_API void retro_unload_game( void )
++{
++	if( g_Computer != nullptr )
++	{
++		g_OSK.Reset( g_Computer->GetPIC( ));
++	}
++	g_Computer = nullptr;
++	g_Speech   = nullptr;
++	g_Sound    = nullptr;
++	g_VDP      = nullptr;
++	g_RomPath.clear( );
++}
++
++RETRO_API void retro_reset( void )
++{
++	if( g_Computer != nullptr )
++	{
++		g_OSK.Reset( g_Computer->GetPIC( ));
++		g_Computer->Reset( );
++		g_OSK.SetAlphaLock( true, g_Computer->GetPIC( ));
++	}
++}
++
++RETRO_API void retro_run( void )
++{
++	if( g_Computer == nullptr )
++	{
++		return;
++	}
++
++	bool updated = false;
++	if(( g_EnvironCb != nullptr ) && g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated ) && updated )
++	{
++		UpdateCoreOptions( false );
++	}
++
++	PollAndApplyInput( );
++
++	size_t audioFrames = 0;
++	g_Computer->RunFrame( g_AudioBuffer, &audioFrames );
++
++	if(( g_VDP != nullptr ) && ( g_VideoCb != nullptr ))
++	{
++		unsigned width  = g_VDP->GetOutputWidth( );
++		unsigned height = g_VDP->GetOutputHeight( );
++
++		if( g_OSK.IsActive( ))
++		{
++			if( g_UseRGB565 )
++			{
++				g_OSK.RenderRGB565( g_VDP->GetFrameBuffer565( ), width, height, width );
++			}
++			else
++			{
++				g_OSK.RenderXRGB8888( g_VDP->GetFrameBuffer8888( ), width, height, width );
++			}
++		}
++
++		g_VideoCb( g_VDP->GetFrameBuffer( ), width, height, g_VDP->GetOutputPitch( ));
++	}
++
++	if(( audioFrames > 0 ) && ( g_AudioBatchCb != nullptr ))
++	{
++		g_AudioBatchCb( g_AudioBuffer, audioFrames );
++	}
++}
++
++RETRO_API size_t retro_serialize_size( void )
++{
++	return ( g_Computer != nullptr ) ? g_Computer->SerializeSize( ) : 0;
++}
++
++RETRO_API bool retro_serialize( void *data, size_t size )
++{
++	if( g_Computer == nullptr )
++	{
++		return false;
++	}
++	return g_Computer->Serialize( data, size );
++}
++
++RETRO_API bool retro_unserialize( const void *data, size_t size )
++{
++	if( g_Computer == nullptr )
++	{
++		return false;
++	}
++	return g_Computer->Unserialize( data, size );
++}
++
++RETRO_API void retro_cheat_reset( void )
++{
++}
++
++RETRO_API void retro_cheat_set( unsigned index, bool enabled, const char *code )
++{
++	( void ) index;
++	( void ) enabled;
++	( void ) code;
++}
++
++RETRO_API unsigned retro_get_region( void )
++{
++	if(( g_Computer != nullptr ) && ( g_Computer->GetRefreshRate( ) == 50 ))
++	{
++		return RETRO_REGION_PAL;
++	}
++	return RETRO_REGION_NTSC;
++}
++
++RETRO_API void *retro_get_memory_data( unsigned id )
++{
++	if( g_Computer == nullptr )
++	{
++		return nullptr;
++	}
++
++	switch( id & RETRO_MEMORY_MASK )
++	{
++		case RETRO_MEMORY_SAVE_RAM :
++			return g_Computer->GetSaveRAMPtr( );
++		case RETRO_MEMORY_SYSTEM_RAM :
++			return g_Computer->GetScratchpadPtr( );
++		case RETRO_MEMORY_VIDEO_RAM :
++			return g_Computer->GetVideoMemory( );
++		default :
++			return nullptr;
++	}
++}
++
++RETRO_API size_t retro_get_memory_size( unsigned id )
++{
++	if( g_Computer == nullptr )
++	{
++		return 0;
++	}
++
++	switch( id & RETRO_MEMORY_MASK )
++	{
++		case RETRO_MEMORY_SAVE_RAM :
++			return g_Computer->GetSaveRAMSize( );
++		case RETRO_MEMORY_SYSTEM_RAM :
++			return g_Computer->GetScratchpadSize( );
++		case RETRO_MEMORY_VIDEO_RAM :
++			return 0x4000;
++		default :
++			return 0;
++	}
++}
++
++} // extern "C"
+diff -ruN a/ti99sim/src/libretro/link.T b/ti99sim/src/libretro/link.T
+--- a/ti99sim/src/libretro/link.T	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/link.T	2026-10-31 22:29:28
+@@ -0,0 +1,30 @@
++{
++   global:
++      retro_init;
++      retro_deinit;
++      retro_api_version;
++      retro_get_system_info;
++      retro_get_system_av_info;
++      retro_set_environment;
++      retro_set_video_refresh;
++      retro_set_audio_sample;
++      retro_set_audio_sample_batch;
++      retro_set_input_poll;
++      retro_set_input_state;
++      retro_set_controller_port_device;
++      retro_reset;
++      retro_run;
++      retro_serialize_size;
++      retro_serialize;
++      retro_unserialize;
++      retro_cheat_reset;
++      retro_cheat_set;
++      retro_load_game;
++      retro_load_game_special;
++      retro_unload_game;
++      retro_get_region;
++      retro_get_memory_data;
++      retro_get_memory_size;
++   local:
++      *;
++};
+diff -ruN a/ti99sim/src/libretro/osk-retro.cpp b/ti99sim/src/libretro/osk-retro.cpp
+--- a/ti99sim/src/libretro/osk-retro.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/osk-retro.cpp	2026-10-31 22:29:28
+@@ -0,0 +1,751 @@
++//----------------------------------------------------------------------------
++//
++// File:        osk-retro.cpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Built-in translucent TI-99/4A On-Screen Keyboard for Libretro
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cstring>
++#include "osk-retro.hpp"
++
++namespace
++{
++	constexpr int OSK_KEYSYM_SLOT = 490;
++	constexpr int OSK_MOD_SHIFT   = 491;
++	constexpr int OSK_MOD_FCTN    = 492;
++	constexpr int OSK_MOD_CTRL    = 493;
++
++	enum class eOskKeyType
++	{
++		NORMAL,
++		MOD_SHIFT,
++		MOD_FCTN,
++		MOD_CTRL,
++		MOD_ALPHA,
++		COMBO
++	};
++
++	struct sOskKey
++	{
++		const char    *label;
++		const char    *fctnLabel;
++		eOskKeyType    type;
++		VIRTUAL_KEY_E  vkey1;
++		VIRTUAL_KEY_E  vkey2;
++		int            colSpan;
++	};
++
++	constexpr int NUM_ROWS = 5;
++	constexpr int MAX_COLS = 11;
++
++	constexpr sOskKey OskLayout[ NUM_ROWS ][ MAX_COLS ] =
++	{
++		// Row 0: Number row
++		{
++			{ "1", "DEL", eOskKeyType::NORMAL, VK_1,      VK_NONE, 1 },
++			{ "2", "INS", eOskKeyType::NORMAL, VK_2,      VK_NONE, 1 },
++			{ "3", "ERA", eOskKeyType::NORMAL, VK_3,      VK_NONE, 1 },
++			{ "4", "CLR", eOskKeyType::NORMAL, VK_4,      VK_NONE, 1 },
++			{ "5", "BGN", eOskKeyType::NORMAL, VK_5,      VK_NONE, 1 },
++			{ "6", "PRO", eOskKeyType::NORMAL, VK_6,      VK_NONE, 1 },
++			{ "7", "AID", eOskKeyType::NORMAL, VK_7,      VK_NONE, 1 },
++			{ "8", "RDO", eOskKeyType::NORMAL, VK_8,      VK_NONE, 1 },
++			{ "9", "BCK", eOskKeyType::NORMAL, VK_9,      VK_NONE, 1 },
++			{ "0", "0",   eOskKeyType::NORMAL, VK_0,      VK_NONE, 1 },
++			{ "=", "QIT", eOskKeyType::NORMAL, VK_EQUALS, VK_NONE, 1 }
++		},
++		// Row 1: QWERTY row
++		{
++			{ "Q", "Q",   eOskKeyType::NORMAL, VK_Q,      VK_NONE, 1 },
++			{ "W", "~",   eOskKeyType::NORMAL, VK_W,      VK_NONE, 1 },
++			{ "E", "UP",  eOskKeyType::NORMAL, VK_E,      VK_NONE, 1 },
++			{ "R", "[",   eOskKeyType::NORMAL, VK_R,      VK_NONE, 1 },
++			{ "T", "]",   eOskKeyType::NORMAL, VK_T,      VK_NONE, 1 },
++			{ "Y", "Y",   eOskKeyType::NORMAL, VK_Y,      VK_NONE, 1 },
++			{ "U", "_",   eOskKeyType::NORMAL, VK_U,      VK_NONE, 1 },
++			{ "I", "?",   eOskKeyType::NORMAL, VK_I,      VK_NONE, 1 },
++			{ "O", "'",   eOskKeyType::NORMAL, VK_O,      VK_NONE, 1 },
++			{ "P", "\"",  eOskKeyType::NORMAL, VK_P,      VK_NONE, 1 },
++			{ "/", "-",   eOskKeyType::NORMAL, VK_DIVIDE, VK_NONE, 1 }
++		},
++		// Row 2: ASDF row
++		{
++			{ "A", "|",   eOskKeyType::NORMAL, VK_A,         VK_NONE, 1 },
++			{ "S", "LFT", eOskKeyType::NORMAL, VK_S,         VK_NONE, 1 },
++			{ "D", "RGT", eOskKeyType::NORMAL, VK_D,         VK_NONE, 1 },
++			{ "F", "{",   eOskKeyType::NORMAL, VK_F,         VK_NONE, 1 },
++			{ "G", "}",   eOskKeyType::NORMAL, VK_G,         VK_NONE, 1 },
++			{ "H", "H",   eOskKeyType::NORMAL, VK_H,         VK_NONE, 1 },
++			{ "J", "J",   eOskKeyType::NORMAL, VK_J,         VK_NONE, 1 },
++			{ "K", "K",   eOskKeyType::NORMAL, VK_K,         VK_NONE, 1 },
++			{ "L", "L",   eOskKeyType::NORMAL, VK_L,         VK_NONE, 1 },
++			{ ";", ":",   eOskKeyType::NORMAL, VK_SEMICOLON, VK_NONE, 1 },
++			{ "ENT","ENT",eOskKeyType::NORMAL, VK_ENTER,     VK_NONE, 1 }
++		},
++		// Row 3: ZXCV row
++		{
++			{ "SHF","SHF",eOskKeyType::MOD_SHIFT, VK_SHIFT,  VK_NONE, 1 },
++			{ "Z", "\\",  eOskKeyType::NORMAL,    VK_Z,      VK_NONE, 1 },
++			{ "X", "DWN", eOskKeyType::NORMAL,    VK_X,      VK_NONE, 1 },
++			{ "C", "`",   eOskKeyType::NORMAL,    VK_C,      VK_NONE, 1 },
++			{ "V", "V",   eOskKeyType::NORMAL,    VK_V,      VK_NONE, 1 },
++			{ "B", "B",   eOskKeyType::NORMAL,    VK_B,      VK_NONE, 1 },
++			{ "N", "N",   eOskKeyType::NORMAL,    VK_N,      VK_NONE, 1 },
++			{ "M", "M",   eOskKeyType::NORMAL,    VK_M,      VK_NONE, 1 },
++			{ ",", ",",   eOskKeyType::NORMAL,    VK_COMMA,  VK_NONE, 1 },
++			{ ".", ".",   eOskKeyType::NORMAL,    VK_PERIOD, VK_NONE, 1 },
++			{ "FCT","FCT",eOskKeyType::MOD_FCTN,  VK_FCTN,   VK_NONE, 1 }
++		},
++		// Row 4: Modifiers, Space, and TI Function shortcuts
++		{
++			{ "ALP","ALP",eOskKeyType::MOD_ALPHA, VK_CAPSLOCK, VK_NONE,   1 },
++			{ "CTL","CTL",eOskKeyType::MOD_CTRL,  VK_CTRL,     VK_NONE,   1 },
++			{ "SPACE","SPACE",eOskKeyType::NORMAL,VK_SPACE,    VK_NONE,   3 },
++			{ "AID","AID",eOskKeyType::COMBO,     VK_FCTN,     VK_7,      1 },
++			{ "CLR","CLR",eOskKeyType::COMBO,     VK_FCTN,     VK_4,      1 },
++			{ "PRO","PRO",eOskKeyType::COMBO,     VK_FCTN,     VK_6,      1 },
++			{ "RDO","RDO",eOskKeyType::COMBO,     VK_FCTN,     VK_8,      1 },
++			{ "BCK","BCK",eOskKeyType::COMBO,     VK_FCTN,     VK_9,      1 },
++			{ "QIT","QIT",eOskKeyType::COMBO,     VK_FCTN,     VK_EQUALS, 1 },
++			{ nullptr, nullptr, eOskKeyType::NORMAL, VK_NONE, VK_NONE, 0 },
++			{ nullptr, nullptr, eOskKeyType::NORMAL, VK_NONE, VK_NONE, 0 }
++		}
++	};
++
++	constexpr int RowColCount[ NUM_ROWS ] = { 11, 11, 11, 11, 9 };
++
++	// Compact 5x7 bitmap font for ASCII 32..95 (5 columns, 7 bits high, bit 0 = top row)
++	constexpr uint8_t Font5x7[ 64 ][ 5 ] =
++	{
++		{ 0x00, 0x00, 0x00, 0x00, 0x00 }, // ' '
++		{ 0x00, 0x00, 0x5F, 0x00, 0x00 }, // '!'
++		{ 0x00, 0x07, 0x00, 0x07, 0x00 }, // '"'
++		{ 0x14, 0x7F, 0x14, 0x7F, 0x14 }, // '#'
++		{ 0x24, 0x2A, 0x7F, 0x2A, 0x12 }, // '$'
++		{ 0x23, 0x13, 0x08, 0x64, 0x62 }, // '%'
++		{ 0x36, 0x49, 0x55, 0x22, 0x50 }, // '&'
++		{ 0x00, 0x05, 0x03, 0x00, 0x00 }, // '''
++		{ 0x00, 0x1C, 0x22, 0x41, 0x00 }, // '('
++		{ 0x00, 0x41, 0x22, 0x1C, 0x00 }, // ')'
++		{ 0x14, 0x08, 0x3E, 0x08, 0x14 }, // '*'
++		{ 0x08, 0x08, 0x3E, 0x08, 0x08 }, // '+'
++		{ 0x00, 0x50, 0x30, 0x00, 0x00 }, // ','
++		{ 0x08, 0x08, 0x08, 0x08, 0x08 }, // '-'
++		{ 0x00, 0x60, 0x60, 0x00, 0x00 }, // '.'
++		{ 0x20, 0x10, 0x08, 0x04, 0x02 }, // '/'
++		{ 0x3E, 0x51, 0x49, 0x45, 0x3E }, // '0'
++		{ 0x00, 0x42, 0x7F, 0x40, 0x00 }, // '1'
++		{ 0x42, 0x61, 0x51, 0x49, 0x46 }, // '2'
++		{ 0x21, 0x41, 0x45, 0x4B, 0x31 }, // '3'
++		{ 0x18, 0x14, 0x12, 0x7F, 0x10 }, // '4'
++		{ 0x27, 0x45, 0x45, 0x45, 0x39 }, // '5'
++		{ 0x3C, 0x4A, 0x49, 0x49, 0x30 }, // '6'
++		{ 0x01, 0x71, 0x09, 0x05, 0x03 }, // '7'
++		{ 0x36, 0x49, 0x49, 0x49, 0x36 }, // '8'
++		{ 0x06, 0x49, 0x49, 0x29, 0x1E }, // '9'
++		{ 0x00, 0x36, 0x36, 0x00, 0x00 }, // ':'
++		{ 0x00, 0x56, 0x36, 0x00, 0x00 }, // ';'
++		{ 0x08, 0x14, 0x22, 0x41, 0x00 }, // '<'
++		{ 0x14, 0x14, 0x14, 0x14, 0x14 }, // '='
++		{ 0x00, 0x41, 0x22, 0x14, 0x08 }, // '>'
++		{ 0x02, 0x01, 0x51, 0x09, 0x06 }, // '?'
++		{ 0x32, 0x49, 0x79, 0x41, 0x3E }, // '@'
++		{ 0x7E, 0x11, 0x11, 0x11, 0x7E }, // 'A'
++		{ 0x7F, 0x49, 0x49, 0x49, 0x36 }, // 'B'
++		{ 0x3E, 0x41, 0x41, 0x41, 0x22 }, // 'C'
++		{ 0x7F, 0x41, 0x41, 0x22, 0x1C }, // 'D'
++		{ 0x7F, 0x49, 0x49, 0x49, 0x41 }, // 'E'
++		{ 0x7F, 0x09, 0x09, 0x09, 0x01 }, // 'F'
++		{ 0x3E, 0x41, 0x49, 0x49, 0x7A }, // 'G'
++		{ 0x7F, 0x08, 0x08, 0x08, 0x7F }, // 'H'
++		{ 0x00, 0x41, 0x7F, 0x41, 0x00 }, // 'I'
++		{ 0x20, 0x40, 0x41, 0x3F, 0x01 }, // 'J'
++		{ 0x7F, 0x08, 0x14, 0x22, 0x41 }, // 'K'
++		{ 0x7F, 0x40, 0x40, 0x40, 0x40 }, // 'L'
++		{ 0x7F, 0x02, 0x0C, 0x02, 0x7F }, // 'M'
++		{ 0x7F, 0x04, 0x08, 0x10, 0x7F }, // 'N'
++		{ 0x3E, 0x41, 0x41, 0x41, 0x3E }, // 'O'
++		{ 0x7F, 0x09, 0x09, 0x09, 0x06 }, // 'P'
++		{ 0x3E, 0x41, 0x51, 0x21, 0x5E }, // 'Q'
++		{ 0x7F, 0x09, 0x19, 0x29, 0x46 }, // 'R'
++		{ 0x46, 0x49, 0x49, 0x49, 0x31 }, // 'S'
++		{ 0x01, 0x01, 0x7F, 0x01, 0x01 }, // 'T'
++		{ 0x3F, 0x40, 0x40, 0x40, 0x3F }, // 'U'
++		{ 0x1F, 0x20, 0x40, 0x20, 0x1F }, // 'V'
++		{ 0x3F, 0x40, 0x38, 0x40, 0x3F }, // 'W'
++		{ 0x63, 0x14, 0x08, 0x14, 0x63 }, // 'X'
++		{ 0x07, 0x08, 0x70, 0x08, 0x07 }, // 'Y'
++		{ 0x61, 0x51, 0x49, 0x45, 0x43 }, // 'Z'
++		{ 0x00, 0x7F, 0x41, 0x41, 0x00 }, // '['
++		{ 0x02, 0x04, 0x08, 0x10, 0x20 }, // '\'
++		{ 0x00, 0x41, 0x41, 0x7F, 0x00 }, // ']'
++		{ 0x04, 0x02, 0x01, 0x02, 0x04 }, // '^'
++		{ 0x40, 0x40, 0x40, 0x40, 0x40 }  // '_'
++	};
++
++	inline uint16_t BlendRGB565( uint16_t dst, uint16_t src )
++	{
++		// Fast 75% src + 25% dst blend
++		uint32_t dR = ( dst >> 11 ) & 0x1F;
++		uint32_t dG = ( dst >> 5  ) & 0x3F;
++		uint32_t dB = ( dst >> 0  ) & 0x1F;
++
++		uint32_t sR = ( src >> 11 ) & 0x1F;
++		uint32_t sG = ( src >> 5  ) & 0x3F;
++		uint32_t sB = ( src >> 0  ) & 0x1F;
++
++		uint32_t r = ( sR * 3 + dR ) >> 2;
++		uint32_t g = ( sG * 3 + dG ) >> 2;
++		uint32_t b = ( sB * 3 + dB ) >> 2;
++
++		return static_cast<uint16_t>(( r << 11 ) | ( g << 5 ) | b );
++	}
++
++	inline uint32_t BlendXRGB8888( uint32_t dst, uint32_t src )
++	{
++		uint32_t dR = ( dst >> 16 ) & 0xFF;
++		uint32_t dG = ( dst >> 8  ) & 0xFF;
++		uint32_t dB = ( dst >> 0  ) & 0xFF;
++
++		uint32_t sR = ( src >> 16 ) & 0xFF;
++		uint32_t sG = ( src >> 8  ) & 0xFF;
++		uint32_t sB = ( src >> 0  ) & 0xFF;
++
++		uint32_t r = ( sR * 3 + dR ) >> 2;
++		uint32_t g = ( sG * 3 + dG ) >> 2;
++		uint32_t b = ( sB * 3 + dB ) >> 2;
++
++		return ( r << 16 ) | ( g << 8 ) | b;
++	}
++
++	template <typename PixelT>
++	void DrawChar5x7( PixelT *fb, unsigned width, unsigned height, unsigned pitchPixels, int x, int y, char c, PixelT color )
++	{
++		if(( c >= 'a' ) && ( c <= 'z' ))
++		{
++			c = static_cast<char>( c - 'a' + 'A' );
++		}
++		if(( c < 32 ) || ( c > 95 ))
++		{
++			c = '?';
++		}
++
++		const uint8_t *glyph = Font5x7[ c - 32 ];
++		for( int col = 0; col < 5; col++ )
++		{
++			int px = x + col;
++			if(( px < 0 ) || ( px >= static_cast<int>( width )))
++			{
++				continue;
++			}
++			uint8_t bits = glyph[ col ];
++			for( int row = 0; row < 7; row++ )
++			{
++				int py = y + row;
++				if(( py >= 0 ) && ( py < static_cast<int>( height )) && ( bits & ( 1 << row )))
++				{
++					fb[ py * pitchPixels + px ] = color;
++				}
++			}
++		}
++	}
++
++	template <typename PixelT>
++	void DrawText5x7( PixelT *fb, unsigned width, unsigned height, unsigned pitchPixels, int x, int y, const char *text, PixelT color )
++	{
++		if( text == nullptr )
++		{
++			return;
++		}
++		for( int i = 0; text[ i ] != '\0'; i++ )
++		{
++			DrawChar5x7( fb, width, height, pitchPixels, x + i * 6, y, text[ i ], color );
++		}
++	}
++}
++
++cRetroOSK::cRetroOSK( ) :
++	m_Active( false ),
++	m_TopPosition( false ),
++	m_CursorRow( 0 ),
++	m_CursorCol( 0 ),
++	m_StickyShift( false ),
++	m_StickyFctn( false ),
++	m_StickyCtrl( false ),
++	m_AlphaLock( true ),
++	m_ActiveKeySym( 0 ),
++	m_ActiveVKey1( VK_NONE ),
++	m_ActiveVKey2( VK_NONE ),
++	m_ClearStickyOnRelease( false ),
++	m_PrevInput( ),
++	m_RepeatTimer( 0 )
++{
++}
++
++void cRetroOSK::Reset( iTMS9901 *pic )
++{
++	ReleaseActiveKey( pic );
++	if( pic != nullptr )
++	{
++		pic->VKeyUp( OSK_MOD_SHIFT );
++		pic->VKeyUp( OSK_MOD_FCTN );
++		pic->VKeyUp( OSK_MOD_CTRL );
++	}
++	m_StickyShift = false;
++	m_StickyFctn  = false;
++	m_StickyCtrl  = false;
++	m_Active      = false;
++	m_PrevInput   = { };
++	m_RepeatTimer = 0;
++}
++
++void cRetroOSK::SetActive( bool active, iTMS9901 *pic )
++{
++	if( m_Active == active )
++	{
++		return;
++	}
++
++	if( !active )
++	{
++		ReleaseActiveKey( pic );
++		if( pic != nullptr )
++		{
++			pic->VKeyUp( OSK_MOD_SHIFT );
++			pic->VKeyUp( OSK_MOD_FCTN );
++			pic->VKeyUp( OSK_MOD_CTRL );
++		}
++		m_StickyShift = false;
++		m_StickyFctn  = false;
++		m_StickyCtrl  = false;
++	}
++
++	m_Active      = active;
++	m_RepeatTimer = 0;
++}
++
++void cRetroOSK::Toggle( iTMS9901 *pic )
++{
++	SetActive( !m_Active, pic );
++}
++
++void cRetroOSK::SetAlphaLock( bool enabled, iTMS9901 *pic )
++{
++	m_AlphaLock = enabled;
++	if( pic != nullptr )
++	{
++		if( enabled )
++		{
++			if( pic->GetKeyState( VK_CAPSLOCK ) == 0 )
++			{
++				pic->VKeyDown( 0, VK_CAPSLOCK );
++			}
++		}
++		else
++		{
++			pic->VKeyUp( 0 );
++		}
++	}
++}
++
++void cRetroOSK::ReleaseActiveKey( iTMS9901 *pic )
++{
++	if(( m_ActiveKeySym != 0 ) && ( pic != nullptr ))
++	{
++		pic->VKeyUp( m_ActiveKeySym );
++	}
++	m_ActiveKeySym = 0;
++	m_ActiveVKey1  = VK_NONE;
++	m_ActiveVKey2  = VK_NONE;
++
++	if( m_ClearStickyOnRelease && ( pic != nullptr ))
++	{
++		pic->VKeyUp( OSK_MOD_SHIFT );
++		pic->VKeyUp( OSK_MOD_FCTN );
++		pic->VKeyUp( OSK_MOD_CTRL );
++		m_StickyShift          = false;
++		m_StickyFctn           = false;
++		m_StickyCtrl           = false;
++		m_ClearStickyOnRelease = false;
++	}
++}
++
++void cRetroOSK::PressSelectedKey( iTMS9901 *pic )
++{
++	if( pic == nullptr )
++	{
++		return;
++	}
++
++	const sOskKey &k = OskLayout[ m_CursorRow ][ m_CursorCol ];
++	if( k.label == nullptr )
++	{
++		return;
++	}
++
++	switch( k.type )
++	{
++		case eOskKeyType::MOD_SHIFT :
++			m_StickyShift = !m_StickyShift;
++			if( m_StickyShift )
++			{
++				pic->VKeysDown( OSK_MOD_SHIFT, VK_SHIFT );
++			}
++			else
++			{
++				pic->VKeyUp( OSK_MOD_SHIFT );
++			}
++			break;
++
++		case eOskKeyType::MOD_FCTN :
++			m_StickyFctn = !m_StickyFctn;
++			if( m_StickyFctn )
++			{
++				pic->VKeysDown( OSK_MOD_FCTN, VK_FCTN );
++			}
++			else
++			{
++				pic->VKeyUp( OSK_MOD_FCTN );
++			}
++			break;
++
++		case eOskKeyType::MOD_CTRL :
++			m_StickyCtrl = !m_StickyCtrl;
++			if( m_StickyCtrl )
++			{
++				pic->VKeysDown( OSK_MOD_CTRL, VK_CTRL );
++			}
++			else
++			{
++				pic->VKeyUp( OSK_MOD_CTRL );
++			}
++			break;
++
++		case eOskKeyType::MOD_ALPHA :
++			SetAlphaLock( !m_AlphaLock, pic );
++			break;
++
++		case eOskKeyType::COMBO :
++			ReleaseActiveKey( pic );
++			m_ActiveKeySym = OSK_KEYSYM_SLOT;
++			m_ActiveVKey1  = k.vkey1;
++			m_ActiveVKey2  = k.vkey2;
++			pic->VKeysDown( OSK_KEYSYM_SLOT, k.vkey1, k.vkey2 );
++			break;
++
++		case eOskKeyType::NORMAL :
++			ReleaseActiveKey( pic );
++			m_ActiveKeySym         = OSK_KEYSYM_SLOT;
++			m_ActiveVKey1          = k.vkey1;
++			m_ActiveVKey2          = k.vkey2;
++			m_ClearStickyOnRelease = ( m_StickyShift || m_StickyFctn || m_StickyCtrl );
++			pic->VKeysDown( OSK_KEYSYM_SLOT, k.vkey1, k.vkey2 );
++			break;
++	}
++}
++
++void cRetroOSK::Update( const sPadInput &input, iTMS9901 *pic )
++{
++	if( !m_Active )
++	{
++		m_PrevInput = input;
++		return;
++	}
++
++	// L / R toggles top/bottom placement of the keyboard overlay
++	if(( input.l && !m_PrevInput.l ) || ( input.r && !m_PrevInput.r ))
++	{
++		m_TopPosition = !m_TopPosition;
++	}
++
++	// B closes the OSK
++	if( input.b && !m_PrevInput.b )
++	{
++		SetActive( false, pic );
++		m_PrevInput = input;
++		return;
++	}
++
++	// X toggles sticky FCTN modifier
++	if( input.x && !m_PrevInput.x )
++	{
++		m_StickyFctn = !m_StickyFctn;
++		if( pic != nullptr )
++		{
++			if( m_StickyFctn )
++			{
++				pic->VKeysDown( OSK_MOD_FCTN, VK_FCTN );
++			}
++			else
++			{
++				pic->VKeyUp( OSK_MOD_FCTN );
++			}
++		}
++	}
++
++	// D-pad navigation with auto-repeat
++	bool anyDir     = input.up || input.down || input.left || input.right;
++	bool prevAnyDir = m_PrevInput.up || m_PrevInput.down || m_PrevInput.left || m_PrevInput.right;
++	bool stepDir    = false;
++
++	if( anyDir )
++	{
++		if( !prevAnyDir )
++		{
++			stepDir       = true;
++			m_RepeatTimer = 18;
++		}
++		else if( --m_RepeatTimer <= 0 )
++		{
++			stepDir       = true;
++			m_RepeatTimer = 5;
++		}
++	}
++	else
++	{
++		m_RepeatTimer = 0;
++	}
++
++	if( stepDir )
++	{
++		if( input.up )
++		{
++			m_CursorRow = ( m_CursorRow + NUM_ROWS - 1 ) % NUM_ROWS;
++		}
++		else if( input.down )
++		{
++			m_CursorRow = ( m_CursorRow + 1 ) % NUM_ROWS;
++		}
++
++		int maxCols = RowColCount[ m_CursorRow ];
++		if( m_CursorCol >= maxCols )
++		{
++			m_CursorCol = maxCols - 1;
++		}
++
++		if( input.left )
++		{
++			m_CursorCol = ( m_CursorCol + maxCols - 1 ) % maxCols;
++		}
++		else if( input.right )
++		{
++			m_CursorCol = ( m_CursorCol + 1 ) % maxCols;
++		}
++	}
++
++	// A presses selected key; Y presses Space; Start presses Enter
++	bool anyKeyHeld = input.a || input.y || input.start;
++	if( input.a && !m_PrevInput.a )
++	{
++		PressSelectedKey( pic );
++	}
++	else if( input.y && !m_PrevInput.y )
++	{
++		ReleaseActiveKey( pic );
++		m_ActiveKeySym = OSK_KEYSYM_SLOT;
++		m_ActiveVKey1  = VK_SPACE;
++		if( pic != nullptr )
++		{
++			pic->VKeysDown( OSK_KEYSYM_SLOT, VK_SPACE );
++		}
++	}
++	else if( input.start && !m_PrevInput.start )
++	{
++		ReleaseActiveKey( pic );
++		m_ActiveKeySym = OSK_KEYSYM_SLOT;
++		m_ActiveVKey1  = VK_ENTER;
++		if( pic != nullptr )
++		{
++			pic->VKeysDown( OSK_KEYSYM_SLOT, VK_ENTER );
++		}
++	}
++	else if( !anyKeyHeld && ( m_ActiveKeySym != 0 ))
++	{
++		ReleaseActiveKey( pic );
++	}
++
++	m_PrevInput = input;
++}
++
++template <typename PixelT, PixelT (*PackFn)( uint8_t, uint8_t, uint8_t ), PixelT (*BlendFn)( PixelT, PixelT )>
++static void RenderOSKImpl(
++	PixelT *fb,
++	unsigned width,
++	unsigned height,
++	unsigned pitchPixels,
++	bool topPos,
++	int cursorRow,
++	int cursorCol,
++	bool stickyShift,
++	bool stickyFctn,
++	bool stickyCtrl,
++	bool alphaLock,
++	bool keyPressed )
++{
++	constexpr int panelW = 248;
++	constexpr int panelH = 82;
++	constexpr int cellW  = 22;
++	constexpr int cellH  = 13;
++
++	int startX = ( static_cast<int>( width ) - panelW ) / 2;
++	int startY = topPos ? 4 : ( static_cast<int>( height ) - panelH - 4 );
++
++	PixelT panelBg      = PackFn(  20,  24,  34 );
++	PixelT panelBorder  = PackFn( 100, 130, 180 );
++	PixelT keyBg        = PackFn(  44,  52,  70 );
++	PixelT keyModBg     = PackFn(  60,  48,  82 );
++	PixelT keyActiveBg  = PackFn(  40, 145,  85 );
++	PixelT keyCursorBg  = PackFn( 235, 185,  35 );
++	PixelT keyPressedBg = PackFn( 255, 110,  40 );
++	PixelT textWhite    = PackFn( 245, 245, 250 );
++	PixelT textDark     = PackFn(  16,  18,  24 );
++	PixelT textHint     = PackFn( 160, 200, 255 );
++
++	// Draw translucent panel background and border
++	for( int y = 0; y < panelH; y++ )
++	{
++		int py = startY + y;
++		if(( py < 0 ) || ( py >= static_cast<int>( height )))
++		{
++			continue;
++		}
++		PixelT *rowPtr = fb + py * pitchPixels;
++		bool isBorderY = ( y == 0 ) || ( y == panelH - 1 );
++		for( int x = 0; x < panelW; x++ )
++		{
++			int px = startX + x;
++			if(( px < 0 ) || ( px >= static_cast<int>( width )))
++			{
++				continue;
++			}
++			bool isBorderX = ( x == 0 ) || ( x == panelW - 1 );
++			if( isBorderX || isBorderY )
++			{
++				rowPtr[ px ] = panelBorder;
++			}
++			else
++			{
++				rowPtr[ px ] = BlendFn( rowPtr[ px ], panelBg );
++			}
++		}
++	}
++
++	// Header legend
++	DrawText5x7( fb, width, height, pitchPixels, startX + 4, startY + 3,
++		"A:KEY B:HIDE X:FCT Y:SPC ST:ENT L:POS", textHint );
++
++	// Draw 5 rows of keys
++	for( int r = 0; r < NUM_ROWS; r++ )
++	{
++		int ky   = startY + 13 + r * ( cellH + 1 );
++		int colX = startX + 3;
++
++		int numCols = RowColCount[ r ];
++		for( int c = 0; c < numCols; c++ )
++		{
++			const sOskKey &k = OskLayout[ r ][ c ];
++			if( k.label == nullptr )
++			{
++				continue;
++			}
++
++			int kw = k.colSpan * cellW - 2;
++			int kh = cellH;
++
++			bool isCursor = ( r == cursorRow ) && ( c == cursorCol );
++			bool isSticky =
++				(( k.type == eOskKeyType::MOD_SHIFT ) && stickyShift ) ||
++				(( k.type == eOskKeyType::MOD_FCTN  ) && stickyFctn  ) ||
++				(( k.type == eOskKeyType::MOD_CTRL  ) && stickyCtrl  ) ||
++				(( k.type == eOskKeyType::MOD_ALPHA ) && alphaLock   );
++
++			PixelT fill = keyBg;
++			if( k.type != eOskKeyType::NORMAL )
++			{
++				fill = keyModBg;
++			}
++			if( isSticky )
++			{
++				fill = keyActiveBg;
++			}
++			if( isCursor )
++			{
++				fill = keyPressed ? keyPressedBg : keyCursorBg;
++			}
++
++			for( int yy = 0; yy < kh; yy++ )
++			{
++				int py = ky + yy;
++				if(( py < 0 ) || ( py >= static_cast<int>( height )))
++				{
++					continue;
++				}
++				PixelT *rowPtr = fb + py * pitchPixels;
++				for( int xx = 0; xx < kw; xx++ )
++				{
++					int px = colX + xx;
++					if(( px >= 0 ) && ( px < static_cast<int>( width )))
++					{
++						rowPtr[ px ] = isCursor ? fill : BlendFn( rowPtr[ px ], fill );
++					}
++				}
++			}
++
++			const char *lbl = ( stickyFctn && ( k.fctnLabel != nullptr )) ? k.fctnLabel : k.label;
++			int lblLen = static_cast<int>( strlen( lbl ));
++			int textX  = colX + ( kw - ( lblLen * 6 - 1 )) / 2;
++			int textY  = ky + ( kh - 7 ) / 2;
++
++			DrawText5x7( fb, width, height, pitchPixels, textX, textY, lbl, isCursor ? textDark : textWhite );
++
++			colX += k.colSpan * cellW;
++		}
++	}
++}
++
++namespace
++{
++	inline uint16_t Pack565( uint8_t r, uint8_t g, uint8_t b )
++	{
++		return static_cast<uint16_t>((( r >> 3 ) << 11 ) | (( g >> 2 ) << 5 ) | ( b >> 3 ));
++	}
++
++	inline uint32_t Pack8888( uint8_t r, uint8_t g, uint8_t b )
++	{
++		return ( static_cast<uint32_t>( r ) << 16 ) | ( static_cast<uint32_t>( g ) << 8 ) | static_cast<uint32_t>( b );
++	}
++}
++
++void cRetroOSK::RenderRGB565( uint16_t *fb, unsigned width, unsigned height, unsigned pitchPixels ) const
++{
++	if( !m_Active || ( fb == nullptr ))
++	{
++		return;
++	}
++
++	RenderOSKImpl<uint16_t, Pack565, BlendRGB565>(
++		fb, width, height, pitchPixels,
++		m_TopPosition, m_CursorRow, m_CursorCol,
++		m_StickyShift, m_StickyFctn, m_StickyCtrl, m_AlphaLock,
++		m_ActiveKeySym != 0 );
++}
++
++void cRetroOSK::RenderXRGB8888( uint32_t *fb, unsigned width, unsigned height, unsigned pitchPixels ) const
++{
++	if( !m_Active || ( fb == nullptr ))
++	{
++		return;
++	}
++
++	RenderOSKImpl<uint32_t, Pack8888, BlendXRGB8888>(
++		fb, width, height, pitchPixels,
++		m_TopPosition, m_CursorRow, m_CursorCol,
++		m_StickyShift, m_StickyFctn, m_StickyCtrl, m_AlphaLock,
++		m_ActiveKeySym != 0 );
++}
+diff -ruN a/ti99sim/src/libretro/osk-retro.hpp b/ti99sim/src/libretro/osk-retro.hpp
+--- a/ti99sim/src/libretro/osk-retro.hpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/osk-retro.hpp	2026-10-31 22:29:28
+@@ -0,0 +1,81 @@
++//----------------------------------------------------------------------------
++//
++// File:        osk-retro.hpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Built-in translucent TI-99/4A On-Screen Keyboard for Libretro
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef OSK_RETRO_HPP_
++#define OSK_RETRO_HPP_
++
++#include <cstdint>
++#include "itms9901.hpp"
++
++class cRetroOSK
++{
++public:
++
++	struct sPadInput
++	{
++		bool up;
++		bool down;
++		bool left;
++		bool right;
++		bool a;
++		bool b;
++		bool x;
++		bool y;
++		bool start;
++		bool l;
++		bool r;
++	};
++
++private:
++
++	bool            m_Active;
++	bool            m_TopPosition;
++	int             m_CursorRow;
++	int             m_CursorCol;
++
++	bool            m_StickyShift;
++	bool            m_StickyFctn;
++	bool            m_StickyCtrl;
++	bool            m_AlphaLock;
++
++	int             m_ActiveKeySym;
++	VIRTUAL_KEY_E   m_ActiveVKey1;
++	VIRTUAL_KEY_E   m_ActiveVKey2;
++	bool            m_ClearStickyOnRelease;
++
++	sPadInput       m_PrevInput;
++	int             m_RepeatTimer;
++
++	void ReleaseActiveKey( iTMS9901 *pic );
++	void PressSelectedKey( iTMS9901 *pic );
++
++public:
++
++	cRetroOSK( );
++	~cRetroOSK( ) = default;
++
++	void Reset( iTMS9901 *pic );
++
++	bool IsActive( ) const { return m_Active; }
++	void SetActive( bool active, iTMS9901 *pic );
++	void Toggle( iTMS9901 *pic );
++
++	bool IsAlphaLock( ) const { return m_AlphaLock; }
++	void SetAlphaLock( bool enabled, iTMS9901 *pic );
++
++	void Update( const sPadInput &input, iTMS9901 *pic );
++
++	void RenderRGB565( uint16_t *fb, unsigned width, unsigned height, unsigned pitchPixels ) const;
++	void RenderXRGB8888( uint32_t *fb, unsigned width, unsigned height, unsigned pitchPixels ) const;
++};
++
++#endif
+diff -ruN a/ti99sim/src/libretro/ti994a-retro.cpp b/ti99sim/src/libretro/ti994a-retro.cpp
+--- a/ti99sim/src/libretro/ti994a-retro.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/ti994a-retro.cpp	2026-10-31 22:29:28
+@@ -0,0 +1,835 @@
++//----------------------------------------------------------------------------
++//
++// File:        ti994a-retro.cpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro TI-99/4A machine coordinator and binary serialization
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cstring>
++#include "common.hpp"
++#include "logger.hpp"
++#include "memory.hpp"
++#include "opcodes.hpp"
++#include "tms9900.hpp"
++#include "tms9901.hpp"
++#include "tms5220.hpp"
++#include "cartridge.hpp"
++#include "ti994a-retro.hpp"
++
++DBG_REGISTER( __FILE__ );
++
++extern cTI994A  *CRU_Object;
++extern cTMS9901 *pic;
++extern void    (*TimerHook)( );
++
++namespace
++{
++	// CPU banks used by the TI-99/4A 32K Memory Expansion peripheral:
++	// 0x2000-0x3FFF (banks 2, 3) and 0xA000-0xFFFF (banks 10..15)
++	constexpr int MASK_32K_EXPANSION = 0x0000FC0C;
++	constexpr int MASK_CONSOLE_ALL   = 0x00FFFFFF;
++	constexpr int MASK_CONSOLE_NO32K = MASK_CONSOLE_ALL & ~MASK_32K_EXPANSION;
++
++	constexpr char     SAVESTATE_MAGIC[ 8 ] = { 'T', 'I', '9', '9', 'R', 'E', 'T', '1' };
++	constexpr uint32_t SAVESTATE_VERSION    = 2;
++
++	#pragma pack( push, 1 )
++	struct sRetroSaveState
++	{
++		char        magic[ 8 ];
++		uint32_t    version;
++
++		// TMS9900 CPU state
++		uint16_t    wp;
++		uint16_t    pc;
++		uint16_t    st;
++		uint16_t    interruptFlag;
++		uint32_t    instructionCounter;
++		uint32_t    clockCycleCounter;
++
++		// TI-99/4A console state
++		uint16_t    gromAddress;
++		int32_t     gromReadShift;
++		int32_t     gromWriteShift;
++		uint16_t    activeCRU;
++		uint32_t    lastRetraceDelta;
++		uint8_t     enable32K;
++		uint8_t     scratchpad[ 256 ];
++		uint8_t     videoMemory[ 0x4000 ];
++
++		// TMS9901 PIC state
++		uint8_t     picTimerActive;
++		int32_t     picReadRegister;
++		int32_t     picDecrementer;
++		int32_t     picClockRegister;
++		uint8_t     picPinState[ 32 ][ 2 ];
++		int32_t     picInterruptRequested;
++		int32_t     picActiveInterrupts;
++		int32_t     picLastDelta;
++		uint32_t    picDecrementClock;
++		uint8_t     picCapsLock;
++		int32_t     picColumnSelect;
++		int32_t     picHideShift;
++
++		// TMS9918A VDP state
++		uint16_t    vdpAddress;
++		uint16_t    vdpTransfer;
++		uint16_t    vdpShift;
++		uint8_t     vdpStatus;
++		uint8_t     vdpRegister[ 8 ];
++		uint8_t     vdpMode;
++		uint8_t     vdpReadAhead;
++		uint8_t     vdpMaxSprite[ 256 ];
++		uint8_t     vdpSpritesDirty;
++		uint8_t     vdpSpritesRefreshed;
++		uint8_t     vdpCoincidenceFlag;
++		uint8_t     vdpFifthSpriteFlag;
++		int32_t     vdpFifthSpriteIndex;
++
++		// TMS9919 PSG state
++		uint8_t     psgLastData;
++		uint16_t    psgFrequency[ 4 ];
++		uint8_t     psgAttenuation[ 4 ];
++		uint8_t     psgNoiseColor;
++		uint8_t     psgNoiseType;
++		float       psgVoicePeriod[ 4 ];
++		float       psgVoiceToggle[ 4 ];
++		int32_t     psgVoiceSetting[ 4 ];
++		int32_t     psgShiftRegister;
++		int32_t     psgNoiseGenerator;
++
++		// TMS5220 Speech Synthesizer state
++		uint8_t     speechPresent;
++		uint8_t     speechReadByte;
++		uint8_t     speechSpeakExternal;
++		uint8_t     speechReadingEnergy;
++		int32_t     speechLoadPointer;
++		uint32_t    speechAddress;
++		int32_t     speechBitOffset;
++		int32_t     speechFifoGet;
++		int32_t     speechFifoPut;
++		int32_t     speechFifoBitsLeft;
++		uint8_t     speechFifo[ 16 ];
++		uint8_t     speechTalkStatus;
++		int32_t     speechInterpolationStage;
++		int32_t     speechPitchIndex;
++		double      speechFilterHistory[ 2 ][ 11 ];
++		double      speechRawDataBuffer[ 25 ];
++		double      speechStartReflection[ 10 ];
++		int32_t     speechStartEnergy;
++		int32_t     speechStartPitch;
++		uint8_t     speechStartRepeat;
++		uint8_t     speechStartStop;
++		double      speechTargetReflection[ 10 ];
++		int32_t     speechTargetEnergy;
++		int32_t     speechTargetPitch;
++		uint8_t     speechTargetRepeat;
++		uint8_t     speechTargetStop;
++
++		// Console 32K RAM (banks 0..15)
++		uint8_t     consoleCpuCurBank[ 16 ];
++		uint8_t     consoleGromCurBank[ 8 ];
++		uint8_t     consoleRamBanks[ 8 ][ ROM_BANK_SIZE ]; // Banks 2, 3, 10, 11, 12, 13, 14, 15
++
++		// Cartridge state (bank indices + up to 32KB cartridge RAM + 16KB GRAM)
++		uint8_t     cartCpuCurBank[ 16 ];
++		uint8_t     cartGromCurBank[ 8 ];
++		uint8_t     cartCpuRam[ 8 ][ ROM_BANK_SIZE ];
++		uint8_t     cartGromRam[ 2 ][ GROM_BANK_SIZE ];
++	};
++	#pragma pack( pop )
++
++	constexpr int ConsoleRamBankIndices[ 8 ] = { 2, 3, 10, 11, 12, 13, 14, 15 };
++}
++
++cRetroTI994A::cRetroTI994A( iCartridge *console, cRetroTMS9918A *vdp, cRetroTMS9919 *sound, iTMS5220 *speech, bool enable32K ) :
++	cBaseObject( "cRetroTI994A" ),
++	cTI994A( console, vdp, sound, speech ),
++	m_RetroVDP( vdp ),
++	m_RetroSound( sound ),
++	m_Enable32K( true ),
++	m_SpeechEnabled( true ),
++	m_RefreshRate( vdp ? static_cast<int>( vdp->GetRefreshRate( )) : 60 ),
++	m_Fallback32K( )
++{
++	// Disable instruction-counter TimerHook; RunFrame drives VideoRetrace deterministically
++	TimerHook = nullptr;
++
++	if( m_RetroSound != nullptr )
++	{
++		m_RetroSound->SetCPU( m_CPU );
++	}
++
++	EnsureConsole32KBanks( );
++
++	if( !enable32K )
++	{
++		Set32KExpansion( false );
++	}
++
++	if( m_PIC != nullptr )
++	{
++		m_PIC->SetAlphaLockFix( true );
++		// Default Alpha Lock ON so TI BASIC and uppercase game prompts work out-of-the-box
++		m_PIC->VKeyDown( 0, VK_CAPSLOCK );
++	}
++}
++
++cRetroTI994A::~cRetroTI994A( )
++{
++	if( m_CPU != nullptr )
++	{
++		for( UINT8 i = 1; i < 16; i++ )
++		{
++			m_CPU->DeRegisterTrapHandler( i );
++		}
++	}
++
++	for( auto &ptr : m_Fallback32K )
++	{
++		delete [] ptr;
++		ptr = nullptr;
++	}
++
++	TimerHook          = nullptr;
++	CRU_Object         = nullptr;
++	pic                = nullptr;
++	WorkspacePtr       = 0;
++	ProgramCounter     = 0;
++	Status             = 0;
++	InterruptFlag      = 0;
++	InstructionCounter = 0;
++	ClockCycleCounter  = 0;
++
++	cpuMemory.SetMemory( 0x0000, 0x10000, nullptr, true );
++	gplMemory.SetMemory( 0x0000, 0x10000, nullptr, true );
++}
++
++void cRetroTI994A::EnsureConsole32KBanks( )
++{
++	if( m_Console == nullptr )
++	{
++		return;
++	}
++
++	bool addedAny = false;
++	for( int bankIdx : ConsoleRamBankIndices )
++	{
++		sMemoryRegion *region = m_Console->GetCpuMemory( bankIdx );
++		if(( region != nullptr ) && ( region->NumBanks == 0 ))
++		{
++			m_Fallback32K[ bankIdx ] = new UINT8[ ROM_BANK_SIZE ];
++			memset( m_Fallback32K[ bankIdx ], 0, ROM_BANK_SIZE );
++			region->NumBanks        = 1;
++			region->Bank[ 0 ].Type  = BANK_RAM;
++			region->Bank[ 0 ].Flags = 0;
++			region->Bank[ 0 ].Data  = m_Fallback32K[ bankIdx ];
++			region->CurBank         = &region->Bank[ 0 ];
++			addedAny                = true;
++		}
++	}
++
++	if( addedAny )
++	{
++		RemoveCartridge( m_Console, MASK_CONSOLE_ALL );
++		AddCartridge( m_Console, m_Enable32K ? MASK_CONSOLE_ALL : MASK_CONSOLE_NO32K );
++	}
++}
++
++void cRetroTI994A::Set32KExpansion( bool enable )
++{
++	if( m_Enable32K == enable )
++	{
++		return;
++	}
++
++	if( m_Console != nullptr )
++	{
++		RemoveCartridge( m_Console, m_Enable32K ? MASK_CONSOLE_ALL : MASK_CONSOLE_NO32K );
++		m_Enable32K = enable;
++		AddCartridge( m_Console, m_Enable32K ? MASK_CONSOLE_ALL : MASK_CONSOLE_NO32K );
++
++		// Re-apply cartridge on top if one is inserted
++		if( m_Cartridge != nullptr )
++		{
++			RemoveCartridge( m_Cartridge, INFO_MASK_CARTRIDGE );
++			AddCartridge( m_Cartridge, INFO_MASK_CARTRIDGE );
++		}
++	}
++	else
++	{
++		m_Enable32K = enable;
++	}
++}
++
++void cRetroTI994A::SetSpeechEnabled( bool enable )
++{
++	m_SpeechEnabled = enable;
++	if( m_RetroSound != nullptr )
++	{
++		m_RetroSound->SetSpeechSynthesizer( enable ? m_SpeechSynthesizer.get( ) : nullptr );
++	}
++}
++
++void cRetroTI994A::SetAlphaLockFix( bool enable )
++{
++	if( m_PIC != nullptr )
++	{
++		m_PIC->SetAlphaLockFix( enable );
++	}
++}
++
++void cRetroTI994A::SetRefreshRate( int hz )
++{
++	if(( hz != 50 ) && ( hz != 60 ))
++	{
++		hz = 60;
++	}
++
++	m_RefreshRate = hz;
++	if( m_RetroVDP != nullptr )
++	{
++		m_RetroVDP->SetRefreshRate( hz );
++	}
++	m_RetraceInterval = m_ClockSpeed / static_cast<UINT32>( m_RefreshRate );
++}
++
++void cRetroTI994A::TimerHookProc( UINT32 )
++{
++	// No-op: VideoRetrace is invoked explicitly at the scanline/VBlank boundary in RunFrame
++}
++
++UINT8 cRetroTI994A::SpeechWriteBreakPoint( ADDRESS address, UINT8 data )
++{
++	if( !m_SpeechEnabled )
++	{
++		return data;
++	}
++	return cTI994A::SpeechWriteBreakPoint( address, data );
++}
++
++UINT8 cRetroTI994A::SpeechReadBreakPoint( ADDRESS address, UINT8 data )
++{
++	if( !m_SpeechEnabled )
++	{
++		return 0;
++	}
++	return cTI994A::SpeechReadBreakPoint( address, data );
++}
++
++void cRetroTI994A::Reset( )
++{
++	cTI994A::Reset( );
++	m_LastRetrace = m_CPU ? m_CPU->GetClocks( ) : 0;
++}
++
++bool cRetroTI994A::Sleep( int cycles, UINT32 )
++{
++	m_CPU->AddClocks( cycles );
++	if( m_RetroSound != nullptr )
++	{
++		m_RetroSound->CatchUpToClocks( m_CPU->GetClocks( ));
++	}
++	return false;
++}
++
++bool cRetroTI994A::WakeCPU( UINT32 )
++{
++	// When TMS5220 Speak-External FIFO is low on bits during AudioCallback,
++	// step the CPU briefly so active speech loops can feed the next byte.
++	if( m_CPU != nullptr )
++	{
++		UINT32 target = m_CPU->GetClocks( ) + 250;
++		while( static_cast<int32_t>( m_CPU->GetClocks( ) - target ) < 0 )
++		{
++			m_CPU->Step( );
++		}
++	}
++	return false;
++}
++
++void cRetroTI994A::RunFrame( int16_t *audioOut, size_t *audioFramesOut )
++{
++	UINT32 startClocks     = m_CPU->GetClocks( );
++	UINT32 frameClocks     = m_RetraceInterval ? m_RetraceInterval : 50000;
++	int    targetSamples   = ( m_RefreshRate == 50 ) ? 882 : 735;
++	UINT32 activeScanClocks = ( frameClocks * 192 ) / 262; // ~36,641 clocks for 192 active lines
++
++	if( m_RetroSound != nullptr )
++	{
++		m_RetroSound->BeginFrame( startClocks, frameClocks, targetSamples );
++	}
++
++	// Execute active display in 4 slices so TMS5220 FIFO and PSG updates stay tightly synced
++	for( int slice = 1; slice <= 4; slice++ )
++	{
++		UINT32 sliceTarget = startClocks + ( activeScanClocks * slice ) / 4;
++		while( static_cast<int32_t>( m_CPU->GetClocks( ) - sliceTarget ) < 0 )
++		{
++			m_CPU->Step( );
++		}
++		if( m_RetroSound != nullptr )
++		{
++			m_RetroSound->CatchUpToClocks( m_CPU->GetClocks( ));
++		}
++	}
++
++	// Trigger VDP vertical retrace (renders scanlines/sprites & raises VDP INT on TMS9901)
++	m_LastRetrace = m_CPU->GetClocks( );
++	VideoRetrace( );
++
++	// Execute VBlank interval (TI console ISR scans keyboard/joystick CRU & updates sound lists)
++	UINT32 frameEndTarget = startClocks + frameClocks;
++	while( static_cast<int32_t>( m_CPU->GetClocks( ) - frameEndTarget ) < 0 )
++	{
++		m_CPU->Step( );
++	}
++
++	if(( m_RetroSound != nullptr ) && ( audioOut != nullptr ))
++	{
++		size_t rendered = m_RetroSound->EndFrame( audioOut );
++		if( audioFramesOut != nullptr )
++		{
++			*audioFramesOut = rendered;
++		}
++	}
++	else if( audioFramesOut != nullptr )
++	{
++		*audioFramesOut = 0;
++	}
++}
++
++void *cRetroTI994A::GetSaveRAMPtr( ) const
++{
++	if( m_Cartridge != nullptr )
++	{
++		for( size_t i = 0; i < NUM_ROM_BANKS; i++ )
++		{
++			sMemoryRegion *region = m_Cartridge->GetCpuMemory( i );
++			for( int j = 0; j < region->NumBanks; j++ )
++			{
++				if(( region->Bank[ j ].Flags & FLAG_BATTERY_BACKED ) && ( region->Bank[ j ].Data != nullptr ))
++				{
++					return region->Bank[ j ].Data;
++				}
++			}
++		}
++	}
++	return nullptr;
++}
++
++size_t cRetroTI994A::GetSaveRAMSize( ) const
++{
++	if( GetSaveRAMPtr( ) != nullptr )
++	{
++		return ROM_BANK_SIZE;
++	}
++	return 0;
++}
++
++size_t cRetroTI994A::SerializeSize( ) const
++{
++	return sizeof( sRetroSaveState );
++}
++
++bool cRetroTI994A::Serialize( void *data, size_t size ) const
++{
++	if(( data == nullptr ) || ( size < sizeof( sRetroSaveState )))
++	{
++		return false;
++	}
++
++	auto *st = static_cast<sRetroSaveState *>( data );
++	memset( st, 0, sizeof( sRetroSaveState ));
++
++	memcpy( st->magic, SAVESTATE_MAGIC, sizeof( SAVESTATE_MAGIC ));
++	st->version = SAVESTATE_VERSION;
++
++	// CPU
++	st->wp                 = WorkspacePtr;
++	st->pc                 = ProgramCounter;
++	st->st                 = Status;
++	st->interruptFlag      = InterruptFlag;
++	st->instructionCounter = InstructionCounter;
++	st->clockCycleCounter  = ClockCycleCounter;
++
++	// Console
++	st->gromAddress        = m_GromAddress;
++	st->gromReadShift      = m_GromReadShift;
++	st->gromWriteShift     = m_GromWriteShift;
++	st->activeCRU          = m_ActiveCRU;
++	st->lastRetraceDelta   = ClockCycleCounter - m_LastRetrace;
++	st->enable32K          = m_Enable32K ? 1 : 0;
++	memcpy( st->scratchpad, m_Scratchpad, sizeof( m_Scratchpad ));
++	memcpy( st->videoMemory, m_VideoMemory, 0x4000 );
++
++	// TMS9901 PIC
++	if( auto *p9901 = dynamic_cast<cTMS9901 *>( static_cast<iTMS9901 *>( m_PIC )))
++	{
++		st->picTimerActive        = p9901->m_TimerActive ? 1 : 0;
++		st->picReadRegister       = p9901->m_ReadRegister;
++		st->picDecrementer        = p9901->m_Decrementer;
++		st->picClockRegister      = p9901->m_ClockRegister;
++		memcpy( st->picPinState, p9901->m_PinState, sizeof( st->picPinState ));
++		st->picInterruptRequested = p9901->m_InterruptRequested;
++		st->picActiveInterrupts   = p9901->m_ActiveInterrupts;
++		st->picLastDelta          = p9901->m_LastDelta;
++		st->picDecrementClock     = p9901->m_DecrementClock;
++		st->picCapsLock           = p9901->m_CapsLock ? 1 : 0;
++		st->picColumnSelect       = p9901->m_ColumnSelect;
++		st->picHideShift          = p9901->m_HideShift;
++	}
++
++	// TMS9918A VDP
++	if( m_RetroVDP != nullptr )
++	{
++		st->vdpAddress          = m_RetroVDP->m_Address;
++		st->vdpTransfer         = m_RetroVDP->m_Transfer;
++		st->vdpShift            = m_RetroVDP->m_Shift;
++		st->vdpStatus           = m_RetroVDP->m_Status;
++		memcpy( st->vdpRegister, m_RetroVDP->m_Register, sizeof( st->vdpRegister ));
++		st->vdpMode             = m_RetroVDP->m_Mode;
++		st->vdpReadAhead        = m_RetroVDP->m_ReadAhead;
++		memcpy( st->vdpMaxSprite, m_RetroVDP->m_MaxSprite, sizeof( st->vdpMaxSprite ));
++		st->vdpSpritesDirty     = m_RetroVDP->m_SpritesDirty ? 1 : 0;
++		st->vdpSpritesRefreshed = m_RetroVDP->m_SpritesRefreshed ? 1 : 0;
++		st->vdpCoincidenceFlag  = m_RetroVDP->m_CoincidenceFlag ? 1 : 0;
++		st->vdpFifthSpriteFlag  = m_RetroVDP->m_FifthSpriteFlag ? 1 : 0;
++		st->vdpFifthSpriteIndex = m_RetroVDP->m_FifthSpriteIndex;
++	}
++
++	// TMS9919 PSG
++	if( m_RetroSound != nullptr )
++	{
++		st->psgLastData   = m_RetroSound->m_LastData;
++		memcpy( st->psgFrequency, m_RetroSound->m_Frequency, sizeof( st->psgFrequency ));
++		memcpy( st->psgAttenuation, m_RetroSound->m_Attenuation, sizeof( st->psgAttenuation ));
++		st->psgNoiseColor = m_RetroSound->m_NoiseColor;
++		st->psgNoiseType  = m_RetroSound->m_NoiseType;
++		for( int i = 0; i < 4; i++ )
++		{
++			st->psgVoicePeriod[ i ]  = m_RetroSound->m_Info[ i ].period;
++			st->psgVoiceToggle[ i ]  = m_RetroSound->m_Info[ i ].toggle;
++			st->psgVoiceSetting[ i ] = m_RetroSound->m_Info[ i ].setting;
++		}
++		st->psgShiftRegister  = m_RetroSound->m_ShiftRegister;
++		st->psgNoiseGenerator = m_RetroSound->m_NoiseGenerator;
++	}
++
++	// TMS5220 Speech
++	if( auto *p5220 = dynamic_cast<cTMS5220 *>( static_cast<iTMS5220 *>( m_SpeechSynthesizer )))
++	{
++		st->speechPresent            = 1;
++		st->speechReadByte           = p5220->m_State.ReadByte ? 1 : 0;
++		st->speechSpeakExternal      = p5220->m_State.SpeakExternal ? 1 : 0;
++		st->speechReadingEnergy      = p5220->m_State.ReadingEnergy ? 1 : 0;
++		st->speechLoadPointer        = p5220->m_State.vsm.LoadPointer;
++		st->speechAddress            = p5220->m_State.vsm.Address;
++		st->speechBitOffset          = p5220->m_State.vsm.BitOffset;
++		st->speechFifoGet            = p5220->m_State.fifo.GetIndex;
++		st->speechFifoPut            = p5220->m_State.fifo.PutIndex;
++		st->speechFifoBitsLeft       = p5220->m_State.fifo.BitsLeft;
++		memcpy( st->speechFifo, p5220->m_FIFO, sizeof( st->speechFifo ));
++		st->speechTalkStatus         = p5220->m_TalkStatus ? 1 : 0;
++		st->speechInterpolationStage = p5220->m_InterpolationStage;
++		st->speechPitchIndex         = p5220->m_PitchIndex;
++		memcpy( st->speechFilterHistory, p5220->m_FilterHistory, sizeof( st->speechFilterHistory ));
++		memcpy( st->speechRawDataBuffer, p5220->m_RawDataBuffer, sizeof( st->speechRawDataBuffer ));
++		memcpy( st->speechStartReflection, p5220->m_StartParams.Reflection, sizeof( st->speechStartReflection ));
++		st->speechStartEnergy        = p5220->m_StartParams.Energy;
++		st->speechStartPitch         = p5220->m_StartParams.Pitch;
++		st->speechStartRepeat        = p5220->m_StartParams.Repeat ? 1 : 0;
++		st->speechStartStop          = p5220->m_StartParams.Stop ? 1 : 0;
++		memcpy( st->speechTargetReflection, p5220->m_TargetParams.Reflection, sizeof( st->speechTargetReflection ));
++		st->speechTargetEnergy       = p5220->m_TargetParams.Energy;
++		st->speechTargetPitch        = p5220->m_TargetParams.Pitch;
++		st->speechTargetRepeat       = p5220->m_TargetParams.Repeat ? 1 : 0;
++		st->speechTargetStop         = p5220->m_TargetParams.Stop ? 1 : 0;
++	}
++
++	// Console 32K RAM
++	if( m_Console != nullptr )
++	{
++		for( size_t i = 0; i < 16; i++ )
++		{
++			sMemoryRegion *r = m_Console->GetCpuMemory( i );
++			st->consoleCpuCurBank[ i ] = ( r && r->CurBank ) ? static_cast<uint8_t>( r->CurBank - r->Bank ) : 0;
++		}
++		for( size_t i = 0; i < 8; i++ )
++		{
++			sMemoryRegion *r = m_Console->GetGromMemory( i );
++			st->consoleGromCurBank[ i ] = ( r && r->CurBank ) ? static_cast<uint8_t>( r->CurBank - r->Bank ) : 0;
++		}
++		for( size_t idx = 0; idx < SIZE( ConsoleRamBankIndices ); idx++ )
++		{
++			int bankIdx = ConsoleRamBankIndices[ idx ];
++			sMemoryRegion *r = m_Console->GetCpuMemory( bankIdx );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ) && ( r->Bank[ 0 ].Data != nullptr ))
++			{
++				memcpy( st->consoleRamBanks[ idx ], r->Bank[ 0 ].Data, ROM_BANK_SIZE );
++			}
++		}
++	}
++
++	// Cartridge banks & RAM
++	if( m_Cartridge != nullptr )
++	{
++		size_t cpuRamSlot = 0;
++		for( size_t i = 0; i < 16; i++ )
++		{
++			sMemoryRegion *r = m_Cartridge->GetCpuMemory( i );
++			st->cartCpuCurBank[ i ] = ( r && r->CurBank ) ? static_cast<uint8_t>( r->CurBank - r->Bank ) : 0;
++			if( r != nullptr )
++			{
++				for( int b = 0; b < r->NumBanks; b++ )
++				{
++					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
++					{
++						memcpy( st->cartCpuRam[ cpuRamSlot++ ], r->Bank[ b ].Data, ROM_BANK_SIZE );
++					}
++				}
++			}
++		}
++
++		size_t gromRamSlot = 0;
++		for( size_t i = 0; i < 8; i++ )
++		{
++			sMemoryRegion *r = m_Cartridge->GetGromMemory( i );
++			st->cartGromCurBank[ i ] = ( r && r->CurBank ) ? static_cast<uint8_t>( r->CurBank - r->Bank ) : 0;
++			if( r != nullptr )
++			{
++				for( int b = 0; b < r->NumBanks; b++ )
++				{
++					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
++					{
++						memcpy( st->cartGromRam[ gromRamSlot++ ], r->Bank[ b ].Data, GROM_BANK_SIZE );
++					}
++				}
++			}
++		}
++	}
++
++	return true;
++}
++
++bool cRetroTI994A::Unserialize( const void *data, size_t size )
++{
++	if(( data == nullptr ) || ( size < sizeof( sRetroSaveState )))
++	{
++		return false;
++	}
++
++	const auto *st = static_cast<const sRetroSaveState *>( data );
++	if(( memcmp( st->magic, SAVESTATE_MAGIC, sizeof( SAVESTATE_MAGIC )) != 0 ) ||
++	   ( st->version != SAVESTATE_VERSION ))
++	{
++		return false;
++	}
++
++	// CPU
++	WorkspacePtr       = st->wp;
++	ProgramCounter     = st->pc;
++	Status             = st->st;
++	InterruptFlag      = st->interruptFlag;
++	InstructionCounter = st->instructionCounter;
++	ClockCycleCounter  = st->clockCycleCounter;
++
++	// Console
++	m_GromAddress      = st->gromAddress;
++	m_GromReadShift    = st->gromReadShift;
++	m_GromWriteShift   = st->gromWriteShift;
++	m_ActiveCRU        = st->activeCRU;
++	m_LastRetrace      = ClockCycleCounter - st->lastRetraceDelta;
++
++	Set32KExpansion( st->enable32K != 0 );
++
++	memcpy( m_Scratchpad, st->scratchpad, sizeof( m_Scratchpad ));
++	memcpy( m_VideoMemory, st->videoMemory, 0x4000 );
++
++	cpuMemory.SetMemory( 0x8000, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8100, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8200, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8300, 0x0100, m_Scratchpad, false );
++
++	// TMS9901 PIC
++	if( auto *p9901 = dynamic_cast<cTMS9901 *>( static_cast<iTMS9901 *>( m_PIC )))
++	{
++		p9901->m_TimerActive        = ( st->picTimerActive != 0 );
++		p9901->m_ReadRegister       = st->picReadRegister;
++		p9901->m_Decrementer        = st->picDecrementer;
++		p9901->m_ClockRegister      = st->picClockRegister;
++		memcpy( p9901->m_PinState, st->picPinState, sizeof( p9901->m_PinState ));
++		p9901->m_InterruptRequested = st->picInterruptRequested;
++		p9901->m_ActiveInterrupts   = st->picActiveInterrupts;
++		p9901->m_LastDelta          = st->picLastDelta;
++		p9901->m_DecrementClock     = st->picDecrementClock;
++		p9901->m_CapsLock           = ( st->picCapsLock != 0 );
++		p9901->m_ColumnSelect       = st->picColumnSelect;
++		p9901->m_HideShift          = st->picHideShift;
++	}
++
++	// TMS9918A VDP
++	if( m_RetroVDP != nullptr )
++	{
++		m_RetroVDP->m_Mode = 0xFF;
++		for( size_t i = 0; i < 8; i++ )
++		{
++			m_RetroVDP->WriteRegister( i, st->vdpRegister[ i ] );
++		}
++		m_RetroVDP->m_Address          = st->vdpAddress;
++		m_RetroVDP->m_Transfer         = st->vdpTransfer;
++		m_RetroVDP->m_Shift            = st->vdpShift;
++		m_RetroVDP->m_Status           = st->vdpStatus;
++		m_RetroVDP->m_Mode             = st->vdpMode;
++		m_RetroVDP->m_ReadAhead        = st->vdpReadAhead;
++		memcpy( m_RetroVDP->m_MaxSprite, st->vdpMaxSprite, sizeof( m_RetroVDP->m_MaxSprite ));
++		m_RetroVDP->m_SpritesDirty     = ( st->vdpSpritesDirty != 0 );
++		m_RetroVDP->m_SpritesRefreshed = ( st->vdpSpritesRefreshed != 0 );
++		m_RetroVDP->m_CoincidenceFlag  = ( st->vdpCoincidenceFlag != 0 );
++		m_RetroVDP->m_FifthSpriteFlag  = ( st->vdpFifthSpriteFlag != 0 );
++		m_RetroVDP->m_FifthSpriteIndex = st->vdpFifthSpriteIndex;
++		m_RetroVDP->RebuildPalette( );
++		m_RetroVDP->MarkAllDirty( );
++	}
++
++	// TMS9919 PSG
++	if( m_RetroSound != nullptr )
++	{
++		m_RetroSound->m_LastData   = st->psgLastData;
++		memcpy( m_RetroSound->m_Frequency, st->psgFrequency, sizeof( m_RetroSound->m_Frequency ));
++		memcpy( m_RetroSound->m_Attenuation, st->psgAttenuation, sizeof( m_RetroSound->m_Attenuation ));
++		m_RetroSound->m_NoiseColor = st->psgNoiseColor;
++		m_RetroSound->m_NoiseType  = st->psgNoiseType;
++		m_RetroSound->RefreshVoices( );
++		for( int i = 0; i < 4; i++ )
++		{
++			m_RetroSound->m_Info[ i ].period  = st->psgVoicePeriod[ i ];
++			m_RetroSound->m_Info[ i ].toggle  = st->psgVoiceToggle[ i ];
++			m_RetroSound->m_Info[ i ].setting = st->psgVoiceSetting[ i ];
++		}
++		m_RetroSound->m_ShiftRegister  = st->psgShiftRegister;
++		m_RetroSound->m_NoiseGenerator = st->psgNoiseGenerator;
++	}
++
++	// TMS5220 Speech
++	if(( st->speechPresent != 0 ) && ( m_SpeechSynthesizer != nullptr ))
++	{
++		if( auto *p5220 = dynamic_cast<cTMS5220 *>( m_SpeechSynthesizer.get( )))
++		{
++			p5220->Reset( );
++			p5220->m_State.ReadByte          = ( st->speechReadByte != 0 );
++			p5220->m_State.SpeakExternal     = ( st->speechSpeakExternal != 0 );
++			p5220->m_State.ReadingEnergy     = ( st->speechReadingEnergy != 0 );
++			p5220->m_State.vsm.LoadPointer   = st->speechLoadPointer;
++			p5220->m_State.vsm.Address       = st->speechAddress;
++			p5220->m_State.vsm.BitOffset     = st->speechBitOffset;
++			p5220->m_State.fifo.GetIndex     = st->speechFifoGet;
++			p5220->m_State.fifo.PutIndex     = st->speechFifoPut;
++			p5220->m_State.fifo.BitsLeft     = st->speechFifoBitsLeft;
++			memcpy( p5220->m_FIFO, st->speechFifo, sizeof( p5220->m_FIFO ));
++			p5220->m_TalkStatus              = ( st->speechTalkStatus != 0 );
++			p5220->m_InterpolationStage      = st->speechInterpolationStage;
++			p5220->m_PitchIndex              = st->speechPitchIndex;
++			memcpy( p5220->m_FilterHistory, st->speechFilterHistory, sizeof( p5220->m_FilterHistory ));
++			memcpy( p5220->m_RawDataBuffer, st->speechRawDataBuffer, sizeof( p5220->m_RawDataBuffer ));
++			memcpy( p5220->m_StartParams.Reflection, st->speechStartReflection, sizeof( p5220->m_StartParams.Reflection ));
++			p5220->m_StartParams.Energy      = st->speechStartEnergy;
++			p5220->m_StartParams.Pitch       = st->speechStartPitch;
++			p5220->m_StartParams.Repeat      = ( st->speechStartRepeat != 0 );
++			p5220->m_StartParams.Stop        = ( st->speechStartStop != 0 );
++			memcpy( p5220->m_TargetParams.Reflection, st->speechTargetReflection, sizeof( p5220->m_TargetParams.Reflection ));
++			p5220->m_TargetParams.Energy     = st->speechTargetEnergy;
++			p5220->m_TargetParams.Pitch      = st->speechTargetPitch;
++			p5220->m_TargetParams.Repeat     = ( st->speechTargetRepeat != 0 );
++			p5220->m_TargetParams.Stop       = ( st->speechTargetStop != 0 );
++		}
++	}
++
++	// Console 32K RAM
++	if( m_Console != nullptr )
++	{
++		for( size_t i = 0; i < 16; i++ )
++		{
++			sMemoryRegion *r = m_Console->GetCpuMemory( i );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ))
++			{
++				int bank = std::clamp<int>( st->consoleCpuCurBank[ i ], 0, r->NumBanks - 1 );
++				r->CurBank = &r->Bank[ bank ];
++			}
++		}
++		for( size_t i = 0; i < 8; i++ )
++		{
++			sMemoryRegion *r = m_Console->GetGromMemory( i );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ))
++			{
++				int bank = std::clamp<int>( st->consoleGromCurBank[ i ], 0, r->NumBanks - 1 );
++				r->CurBank = &r->Bank[ bank ];
++			}
++		}
++		for( size_t idx = 0; idx < SIZE( ConsoleRamBankIndices ); idx++ )
++		{
++			int bankIdx = ConsoleRamBankIndices[ idx ];
++			sMemoryRegion *r = m_Console->GetCpuMemory( bankIdx );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ) && ( r->Bank[ 0 ].Data != nullptr ))
++			{
++				memcpy( r->Bank[ 0 ].Data, st->consoleRamBanks[ idx ], ROM_BANK_SIZE );
++			}
++		}
++	}
++
++	// Cartridge banks & RAM
++	if( m_Cartridge != nullptr )
++	{
++		size_t cpuRamSlot = 0;
++		for( size_t i = 0; i < 16; i++ )
++		{
++			sMemoryRegion *r = m_Cartridge->GetCpuMemory( i );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ))
++			{
++				int bank = std::clamp<int>( st->cartCpuCurBank[ i ], 0, r->NumBanks - 1 );
++				r->CurBank = &r->Bank[ bank ];
++				for( int b = 0; b < r->NumBanks; b++ )
++				{
++					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
++					{
++						memcpy( r->Bank[ b ].Data, st->cartCpuRam[ cpuRamSlot++ ], ROM_BANK_SIZE );
++					}
++				}
++			}
++		}
++
++		size_t gromRamSlot = 0;
++		for( size_t i = 0; i < 8; i++ )
++		{
++			sMemoryRegion *r = m_Cartridge->GetGromMemory( i );
++			if(( r != nullptr ) && ( r->NumBanks > 0 ))
++			{
++				int bank = std::clamp<int>( st->cartGromCurBank[ i ], 0, r->NumBanks - 1 );
++				r->CurBank = &r->Bank[ bank ];
++				for( int b = 0; b < r->NumBanks; b++ )
++				{
++					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
++					{
++						memcpy( r->Bank[ b ].Data, st->cartGromRam[ gromRamSlot++ ], GROM_BANK_SIZE );
++					}
++				}
++			}
++		}
++	}
++
++	UpdateMemory( MASK_CONSOLE_ALL );
++
++	cpuMemory.SetMemory( 0x8000, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8100, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8200, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x8300, 0x0100, m_Scratchpad, false );
++	cpuMemory.SetMemory( 0x9000, ROM_BANK_SIZE, nullptr, true );
++
++	return true;
++}
+diff -ruN a/ti99sim/src/libretro/ti994a-retro.hpp b/ti99sim/src/libretro/ti994a-retro.hpp
+--- a/ti99sim/src/libretro/ti994a-retro.hpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/ti994a-retro.hpp	2026-10-31 22:29:28
+@@ -0,0 +1,85 @@
++//----------------------------------------------------------------------------
++//
++// File:        ti994a-retro.hpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro TI-99/4A machine coordinator and binary serialization
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef TI994A_RETRO_HPP_
++#define TI994A_RETRO_HPP_
++
++#include <cstddef>
++#include <cstdint>
++#include "ti994a.hpp"
++#include "tms9918a-retro.hpp"
++#include "tms9919-retro.hpp"
++
++class cRetroTI994A :
++	public cTI994A
++{
++	cRetroTMS9918A     *m_RetroVDP;
++	cRetroTMS9919      *m_RetroSound;
++	bool                m_Enable32K;
++	bool                m_SpeechEnabled;
++	int                 m_RefreshRate;
++	UINT8              *m_Fallback32K[ 16 ];
++
++public:
++
++	cRetroTI994A( iCartridge *console, cRetroTMS9918A *vdp, cRetroTMS9919 *sound, iTMS5220 *speech, bool enable32K = true );
++	virtual ~cRetroTI994A( ) override;
++
++	void RunFrame( int16_t *audioOut, size_t *audioFramesOut );
++
++	void SetRefreshRate( int hz );
++	int  GetRefreshRate( ) const { return m_RefreshRate; }
++
++	void Set32KExpansion( bool enable );
++	bool Get32KExpansion( ) const { return m_Enable32K; }
++
++	void SetSpeechEnabled( bool enable );
++	bool GetSpeechEnabled( ) const { return m_SpeechEnabled; }
++
++	void SetAlphaLockFix( bool enable );
++
++	iTMS9901       *GetPIC( ) const        { return m_PIC; }
++	cRetroTMS9918A *GetRetroVDP( ) const   { return m_RetroVDP; }
++	cRetroTMS9919  *GetRetroSound( ) const { return m_RetroSound; }
++	iCartridge     *GetCartridge( ) const  { return m_Cartridge; }
++
++	// RetroArch memory descriptors
++	void  *GetSaveRAMPtr( ) const;
++	size_t GetSaveRAMSize( ) const;
++	void  *GetScratchpadPtr( )  { return m_Scratchpad; }
++	size_t GetScratchpadSize( ) const { return sizeof( m_Scratchpad ); }
++
++	// Fast deterministic binary savestates
++	size_t SerializeSize( ) const;
++	bool   Serialize( void *data, size_t size ) const;
++	bool   Unserialize( const void *data, size_t size );
++
++	// iComputer overrides
++	virtual void Reset( ) override;
++	virtual bool Sleep( int cycles, UINT32 timeout ) override;
++	virtual bool WakeCPU( UINT32 timeout ) override;
++
++protected:
++
++	virtual void TimerHookProc( UINT32 clockCycles ) override;
++	virtual UINT8 SpeechWriteBreakPoint( ADDRESS address, UINT8 data ) override;
++	virtual UINT8 SpeechReadBreakPoint( ADDRESS address, UINT8 data ) override;
++
++	void EnsureConsole32KBanks( );
++
++private:
++
++	cRetroTI994A( const cRetroTI994A & ) = delete;
++	cRetroTI994A &operator =( const cRetroTI994A & ) = delete;
++};
++
++#endif
+diff -ruN a/ti99sim/src/libretro/tms9918a-retro.cpp b/ti99sim/src/libretro/tms9918a-retro.cpp
+--- a/ti99sim/src/libretro/tms9918a-retro.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/tms9918a-retro.cpp	2026-10-31 22:29:28
+@@ -0,0 +1,1064 @@
++//----------------------------------------------------------------------------
++//
++// File:        tms9918a-retro.cpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro software VDP renderer for the TMS9918A
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cmath>
++#include <cstring>
++#include "common.hpp"
++#include "logger.hpp"
++#include "tms9918a-retro.hpp"
++
++DBG_REGISTER( __FILE__ );
++
++namespace
++{
++	struct sPaletteRGB
++	{
++		uint8_t r;
++		uint8_t g;
++		uint8_t b;
++	};
++
++	constexpr sPaletteRGB BasePalettes[ 3 ][ 17 ] =
++	{
++		// Palette 0: Default
++		{
++			{ 0x00, 0x00, 0x00 }, // 0x00 TI_TRANSPARENT - Background
++			{ 0x00, 0x00, 0x00 }, // 0x01 TI_BLACK
++			{ 0x48, 0x9C, 0x08 }, // 0x02 TI_MEDIUM_GREEN
++			{ 0x70, 0xBF, 0x88 }, // 0x03 TI_LIGHT_GREEN
++			{ 0x28, 0x3C, 0x8A }, // 0x04 TI_DARK_BLUE
++			{ 0x50, 0x6C, 0xCF }, // 0x05 TI_LIGHT_BLUE
++			{ 0xD0, 0x48, 0x00 }, // 0x06 TI_DARK_RED
++			{ 0x00, 0xCC, 0xFF }, // 0x07 TI_CYAN
++			{ 0xD0, 0x58, 0x28 }, // 0x08 TI_MEDIUM_RED
++			{ 0xFF, 0xA0, 0x40 }, // 0x09 TI_LIGHT_RED
++			{ 0xFC, 0xF0, 0x50 }, // 0x0A TI_DARK_YELLOW
++			{ 0xFF, 0xFF, 0x80 }, // 0x0B TI_LIGHT_YELLOW
++			{ 0x00, 0x80, 0x00 }, // 0x0C TI_DARK_GREEN
++			{ 0xCD, 0x58, 0xCD }, // 0x0D TI_MAGENTA
++			{ 0xE0, 0xE0, 0xE0 }, // 0x0E TI_GRAY
++			{ 0xFF, 0xFF, 0xFF }, // 0x0F TI_WHITE
++			{ 0xFF, 0xFF, 0xFF }  // 0x10 Text Mode Foreground
++		},
++		// Palette 1: NTSC
++		{
++			{ 0x00, 0x00, 0x00 }, // 0x00 TI_TRANSPARENT - Background
++			{ 0x00, 0x00, 0x00 }, // 0x01 TI_BLACK
++			{   33,  200,   66 }, // 0x02 TI_MEDIUM_GREEN
++			{   94,  220,  120 }, // 0x03 TI_LIGHT_GREEN
++			{   84,   85,  237 }, // 0x04 TI_DARK_BLUE
++			{  125,  118,  252 }, // 0x05 TI_LIGHT_BLUE
++			{  212,   82,   77 }, // 0x06 TI_DARK_RED
++			{   66,  235,  245 }, // 0x07 TI_CYAN
++			{  252,   85,   84 }, // 0x08 TI_MEDIUM_RED
++			{  255,  121,  120 }, // 0x09 TI_LIGHT_RED
++			{  212,  193,   84 }, // 0x0A TI_DARK_YELLOW
++			{  230,  206,  128 }, // 0x0B TI_LIGHT_YELLOW
++			{   33,  176,   59 }, // 0x0C TI_DARK_GREEN
++			{  201,   91,  186 }, // 0x0D TI_MAGENTA
++			{  204,  204,  204 }, // 0x0E TI_GRAY
++			{ 0xFF, 0xFF, 0xFF }, // 0x0F TI_WHITE
++			{ 0xFF, 0xFF, 0xFF }  // 0x10 Text Mode Foreground
++		},
++		// Palette 2: RGB
++		{
++			{ 0x00, 0x00, 0x00 }, // 0x00 TI_TRANSPARENT - Background
++			{ 0x00, 0x00, 0x00 }, // 0x01 TI_BLACK
++			{ 0x00, 0xCC, 0x00 }, // 0x02 TI_MEDIUM_GREEN
++			{ 0x00, 0xFF, 0x00 }, // 0x03 TI_LIGHT_GREEN
++			{ 0x00, 0x00, 0x80 }, // 0x04 TI_DARK_BLUE
++			{ 0x00, 0x00, 0xFF }, // 0x05 TI_LIGHT_BLUE
++			{ 0x80, 0x00, 0x00 }, // 0x06 TI_DARK_RED
++			{ 0x00, 0xFF, 0xFF }, // 0x07 TI_CYAN
++			{ 0xCC, 0x00, 0x00 }, // 0x08 TI_MEDIUM_RED
++			{ 0xFF, 0x00, 0x00 }, // 0x09 TI_LIGHT_RED
++			{ 0xB0, 0xB0, 0x00 }, // 0x0A TI_DARK_YELLOW
++			{ 0xFF, 0xFF, 0x00 }, // 0x0B TI_LIGHT_YELLOW
++			{ 0x00, 0x80, 0x00 }, // 0x0C TI_DARK_GREEN
++			{ 0xB0, 0x00, 0xB0 }, // 0x0D TI_MAGENTA
++			{ 0xCC, 0xCC, 0xCC }, // 0x0E TI_GRAY
++			{ 0xFF, 0xFF, 0xFF }, // 0x0F TI_WHITE
++			{ 0xFF, 0xFF, 0xFF }  // 0x10 Text Mode Foreground
++		}
++	};
++
++	inline uint16_t PackRGB565( uint8_t r, uint8_t g, uint8_t b )
++	{
++		return static_cast<uint16_t>((( r >> 3 ) << 11 ) | (( g >> 2 ) << 5 ) | ( b >> 3 ));
++	}
++
++	inline uint32_t PackXRGB8888( uint8_t r, uint8_t g, uint8_t b )
++	{
++		return ( static_cast<uint32_t>( r ) << 16 ) | ( static_cast<uint32_t>( g ) << 8 ) | static_cast<uint32_t>( b );
++	}
++}
++
++cRetroTMS9918A::cRetroTMS9918A( int refreshRate ) :
++	cBaseObject( "cRetroTMS9918A" ),
++	cTMS9918A( refreshRate ),
++	m_ColorTable8888( ),
++	m_ColorTable565( ),
++	m_Palette( eRetroPalette::DEFAULT ),
++	m_ShowBorders( false ),
++	m_UseRGB565( true ),
++	m_TextMode( false ),
++	m_ChangesMade( true ),
++	m_BlankChanged( true ),
++	m_ColorsChanged( true ),
++	m_SpritesChanged( true ),
++	m_ScreenChanged( ),
++	m_PatternChanged( ),
++	m_CharUse( ),
++	m_SpriteCharUse( ),
++	m_CharacterPattern( ),
++	m_BitmapScreen( ),
++	m_BitmapSpriteScreen( ),
++	m_ScreenSource( nullptr ),
++	m_FrameBuffer565( ),
++	m_FrameBuffer8888( )
++{
++	RebuildPalette( );
++	Reset( );
++}
++
++cRetroTMS9918A::~cRetroTMS9918A( )
++{
++}
++
++void cRetroTMS9918A::RebuildPalette( )
++{
++	int index = static_cast<int>( m_Palette );
++	const sPaletteRGB *src = BasePalettes[( index >= 0 && index < 3 ) ? index : 0 ];
++
++	for( int i = 0; i < 17; i++ )
++	{
++		uint8_t r = src[ i ].r;
++		uint8_t g = src[ i ].g;
++		uint8_t b = src[ i ].b;
++
++		if( m_Palette == eRetroPalette::MONO )
++		{
++			uint8_t y = static_cast<uint8_t>( std::lrint( 0.299 * r + 0.587 * g + 0.114 * b ));
++			r = g = b = y;
++		}
++
++		m_ColorTable8888[ i ] = PackXRGB8888( r, g, b );
++		m_ColorTable565 [ i ] = PackRGB565( r, g, b );
++	}
++
++	int bg = ( m_Register[ 7 ] & 0x0F ) ? ( m_Register[ 7 ] & 0x0F ) : TI_BLACK;
++	int fg = ( m_Register[ 7 ] & 0xF0 ) ? ( m_Register[ 7 ] >> 4   ) : bg;
++
++	m_ColorTable8888[  0 ] = m_ColorTable8888[ bg ];
++	m_ColorTable8888[ 16 ] = m_ColorTable8888[ fg ];
++	m_ColorTable565 [  0 ] = m_ColorTable565 [ bg ];
++	m_ColorTable565 [ 16 ] = m_ColorTable565 [ fg ];
++}
++
++void cRetroTMS9918A::SetPalette( eRetroPalette palette )
++{
++	if( m_Palette != palette )
++	{
++		m_Palette = palette;
++		RebuildPalette( );
++		MarkAllDirty( );
++	}
++}
++
++void cRetroTMS9918A::SetShowBorders( bool show )
++{
++	if( m_ShowBorders != show )
++	{
++		m_ShowBorders = show;
++		MarkAllDirty( );
++	}
++}
++
++void cRetroTMS9918A::SetUseRGB565( bool rgb565 )
++{
++	if( m_UseRGB565 != rgb565 )
++	{
++		m_UseRGB565 = rgb565;
++		MarkAllDirty( );
++	}
++}
++
++void cRetroTMS9918A::SetRefreshRate( int refreshRate )
++{
++	m_RefreshRate = refreshRate;
++}
++
++void cRetroTMS9918A::MarkAllDirty( )
++{
++	m_ChangesMade    = true;
++	m_BlankChanged   = true;
++	m_ColorsChanged  = true;
++	m_SpritesChanged = true;
++
++	memset( m_ScreenChanged, true, sizeof( m_ScreenChanged ));
++	memset( m_PatternChanged, true, sizeof( m_PatternChanged ));
++
++	if( m_Memory != nullptr )
++	{
++		memset( m_CharUse, 0, sizeof( m_CharUse ));
++		UINT8 *chr = m_Memory + m_ImageTableIndex;
++		for( unsigned int i = 0; i < m_ImageTableSize; i++ )
++		{
++			int index = ( m_Mode & VDP_M3 ) ? ( i & 0xFF00 ) : 0;
++			m_CharUse[ index + *chr++ ]++;
++		}
++
++		memset( m_SpriteCharUse, 0, sizeof( m_SpriteCharUse ));
++		int count = ( m_Register[ 1 ] & VDP_SPRITE_SIZE ) ? 4 : 1;
++		for( int s = 0; s < 32; s++ )
++		{
++			sSpriteAttributeEntry *sprite = &reinterpret_cast<sSpriteAttribute *>( m_Memory + m_SpriteAttrTableIndex )->data[ s ];
++			for( int i = 0; i < count; i++ )
++			{
++				m_SpriteCharUse[( i + sprite->patternIndex ) % 256 ]++;
++			}
++		}
++	}
++}
++
++bool cRetroTMS9918A::ParseState( const sStateSection &state )
++{
++	if( cTMS9918A::ParseState( state ) == true )
++	{
++		RebuildPalette( );
++		MarkAllDirty( );
++		return true;
++	}
++
++	return false;
++}
++
++void cRetroTMS9918A::Reset( )
++{
++	cTMS9918A::Reset( );
++
++	m_TextMode       = false;
++	m_ChangesMade    = true;
++	m_BlankChanged   = true;
++	m_ColorsChanged  = true;
++	m_SpritesChanged = false;
++	m_ScreenSource   = nullptr;
++
++	memset( m_ScreenChanged, false, sizeof( m_ScreenChanged ));
++	memset( m_PatternChanged, false, sizeof( m_PatternChanged ));
++	memset( m_CharUse, 0, sizeof( m_CharUse ));
++	memset( m_SpriteCharUse, 0, sizeof( m_SpriteCharUse ));
++	memset( m_BitmapScreen, 0, sizeof( m_BitmapScreen ));
++	memset( m_BitmapSpriteScreen, 0, sizeof( m_BitmapSpriteScreen ));
++
++	if( m_Mode & VDP_M3 )
++	{
++		m_CharUse[ 0x0000 ] = m_ImageTableSize / 3;
++		m_CharUse[ 0x0100 ] = m_ImageTableSize / 3;
++		m_CharUse[ 0x0200 ] = m_ImageTableSize / 3;
++	}
++	else
++	{
++		m_CharUse[ 0x0000 ] = m_ImageTableSize;
++	}
++
++	m_SpriteCharUse[ 0 ] = 32;
++	RebuildPalette( );
++}
++
++void cRetroTMS9918A::WriteData( UINT8 data )
++{
++	if( m_Memory != nullptr )
++	{
++		unsigned address = m_Address & 0x3FFF;
++		UINT8 *MemPtr = &m_Memory[ address ];
++
++		if( data != *MemPtr )
++		{
++			int type = m_MemoryType[ address ];
++
++			if( type )
++			{
++				if( type & MEM_IMAGE_TABLE )
++				{
++					unsigned offset = address - m_ImageTableIndex;
++					if( offset < m_ImageTableSize )
++					{
++						unsigned index = ( m_Mode & VDP_M3 ) ? offset & 0xFF00 : 0;
++						m_ChangesMade             = true;
++						m_ScreenChanged[ offset ] = true;
++						m_CharUse[ index + *MemPtr ]--;
++						m_CharUse[ index + data ]++;
++					}
++				}
++
++				if( type & MEM_PATTERN_TABLE )
++				{
++					unsigned offset = address - m_PatternTableIndex;
++					if( offset < m_PatternTableSize )
++					{
++						m_ChangesMade                  = true;
++						m_PatternChanged[ offset / 8 ] = true;
++					}
++				}
++
++				if( !m_TextMode )
++				{
++					if( type & MEM_COLOR_TABLE )
++					{
++						unsigned offset = address - m_ColorTableIndex;
++						if( offset < m_ColorTableSize )
++						{
++							m_ChangesMade = true;
++							if( m_Mode & VDP_M3 )
++							{
++								m_PatternChanged[ offset / 8 ] = true;
++							}
++							else if( offset * 8 + 8 <= sizeof( m_PatternChanged ))
++							{
++								memset( &m_PatternChanged[ offset * 8 ], true, 8 );
++							}
++						}
++					}
++
++					if( type & MEM_SPRITE_ATTR_TABLE )
++					{
++						unsigned index = ( address - m_SpriteAttrTableIndex ) / sizeof( sSpriteAttributeEntry );
++						if( index < 32 )
++						{
++							sSpriteAttributeEntry *sprite = &reinterpret_cast<sSpriteAttribute *>( m_Memory + m_SpriteAttrTableIndex )->data[ index ];
++							if( MemPtr == &sprite->patternIndex )
++							{
++								int count = ( m_Register[ 1 ] & VDP_SPRITE_SIZE ) ? 4 : 1;
++								for( int i = 0; i < count; i++ )
++								{
++									m_SpriteCharUse[( i + *MemPtr ) % 256 ]--;
++									m_SpriteCharUse[( i + data ) % 256 ]++;
++								}
++							}
++							m_SpritesChanged = true;
++						}
++					}
++
++					if( type & MEM_SPRITE_DESC_TABLE )
++					{
++						unsigned index = ( address - m_SpriteDescTableIndex ) / 8;
++						if(( index < 256 ) && ( m_SpriteCharUse[ index ] > 0 ))
++						{
++							m_SpritesChanged = true;
++						}
++					}
++				}
++			}
++		}
++	}
++
++	cTMS9918A::WriteData( data );
++}
++
++void cRetroTMS9918A::WriteRegister( size_t reg, UINT8 value )
++{
++	UINT8 oldReg = m_Register[ reg ];
++	cTMS9918A::WriteRegister( reg, value );
++	UINT8 newReg = m_Register[ reg ];
++
++	if( oldReg == newReg )
++	{
++		return;
++	}
++
++	bool patternChanged = false;
++
++	switch( reg )
++	{
++		case 0 :
++			patternChanged = true;
++			break;
++
++		case 1 :
++			if(( oldReg ^ newReg ) & VDP_BLANK_MASK )
++			{
++				m_BlankChanged = true;
++				if(( oldReg ^ newReg ) == VDP_BLANK_MASK )
++				{
++					break;
++				}
++			}
++			if(( oldReg ^ newReg ) & VDP_SPRITE_SIZE )
++			{
++				memset( m_SpriteCharUse, 0, sizeof( m_SpriteCharUse ));
++				if( m_Memory != nullptr )
++				{
++					int count = ( newReg & VDP_SPRITE_SIZE ) ? 4 : 1;
++					for( int s = 0; s < 32; s++ )
++					{
++						sSpriteAttributeEntry *sprite = &reinterpret_cast<sSpriteAttribute *>( m_Memory + m_SpriteAttrTableIndex )->data[ s ];
++						for( int i = 0; i < count; i++ )
++						{
++							m_SpriteCharUse[( i + sprite->patternIndex ) % 256 ]++;
++						}
++					}
++				}
++				m_SpritesChanged = true;
++			}
++			// Fall through
++
++		case 2 :
++		{
++			m_ChangesMade = true;
++			memset( m_CharUse, 0, sizeof( m_CharUse ));
++			if( m_Memory != nullptr )
++			{
++				UINT8 *chr = m_Memory + m_ImageTableIndex;
++				for( unsigned int i = 0; i < m_ImageTableSize; i++ )
++				{
++					int index = ( m_Mode & VDP_M3 ) ? ( i & 0xFF00 ) : 0;
++					m_CharUse[ index + *chr++ ]++;
++				}
++			}
++			memset( m_ScreenChanged, true, m_ImageTableSize );
++			break;
++		}
++
++		case 7 :
++		{
++			m_ColorsChanged = true;
++
++			int bg = ( newReg & 0x0F ) ? ( newReg & 0x0F ) : TI_BLACK;
++			int fg = ( newReg & 0xF0 ) ? ( newReg >> 4   ) : bg;
++
++			m_ColorTable8888[  0 ] = m_ColorTable8888[ bg ];
++			m_ColorTable8888[ 16 ] = m_ColorTable8888[ fg ];
++			m_ColorTable565 [  0 ] = m_ColorTable565 [ bg ];
++			m_ColorTable565 [ 16 ] = m_ColorTable565 [ fg ];
++
++			// Fall through
++		}
++		case 3 :
++		case 4 :
++			patternChanged = true;
++			break;
++	}
++
++	if( patternChanged )
++	{
++		m_ChangesMade = true;
++		memset( m_PatternChanged, true, sizeof( m_PatternChanged ));
++	}
++}
++
++bool cRetroTMS9918A::Retrace( )
++{
++	cTMS9918A::Retrace( );
++
++	if( BlankEnabled( ) == true )
++	{
++		m_BlankChanged = false;
++		m_ScreenSource = nullptr;
++		ComposeFrameBuffer( );
++		return true;
++	}
++
++	if( m_ChangesMade || m_SpritesChanged || m_BlankChanged || m_ColorsChanged )
++	{
++		bool bNeedsUpdate = false;
++
++		if(( m_Mode & VDP_MODE_ILLEGAL ) == VDP_MODE_ILLEGAL )
++		{
++			bNeedsUpdate = RefreshInvalid( );
++		}
++		else if( m_Mode & VDP_M3 )
++		{
++			bNeedsUpdate = RefreshBitMap( );
++		}
++		else if( m_Mode & VDP_M2 )
++		{
++			bNeedsUpdate = RefreshMultiColor( );
++		}
++		else
++		{
++			bNeedsUpdate = RefreshGraphics( );
++		}
++
++		m_ChangesMade   = false;
++		m_ColorsChanged = false;
++
++		if( bNeedsUpdate || m_SpritesChanged || m_BlankChanged || ( m_ScreenSource == nullptr ))
++		{
++			UpdateScreen( );
++			m_BlankChanged = false;
++		}
++	}
++
++	ComposeFrameBuffer( );
++
++	return true;
++}
++
++void cRetroTMS9918A::Render( )
++{
++	ComposeFrameBuffer( );
++}
++
++void cRetroTMS9918A::ComposeFrameBuffer( )
++{
++	if( m_UseRGB565 )
++	{
++		uint16_t bg = m_ColorTable565[ 0 ];
++
++		if( m_ScreenSource == nullptr )
++		{
++			unsigned total = GetOutputWidth( ) * GetOutputHeight( );
++			std::fill( m_FrameBuffer565, m_FrameBuffer565 + total, bg );
++			return;
++		}
++
++		if( !m_ShowBorders )
++		{
++			const UINT8 *src = m_ScreenSource;
++			uint16_t *dst = m_FrameBuffer565;
++			for( int i = 0; i < VDP_WIDTH * VDP_HEIGHT; i++ )
++			{
++				dst[ i ] = m_ColorTable565[ src[ i ] & 0x1F ];
++			}
++		}
++		else
++		{
++			uint16_t *dst = m_FrameBuffer565;
++			for( int y = 0; y < RETRO_VDP_BORDER_Y; y++ )
++			{
++				std::fill( dst, dst + RETRO_VDP_BORDER_WIDTH, bg );
++				dst += RETRO_VDP_BORDER_WIDTH;
++			}
++
++			const UINT8 *src = m_ScreenSource;
++			for( int y = 0; y < VDP_HEIGHT; y++ )
++			{
++				for( int x = 0; x < RETRO_VDP_BORDER_X; x++ )
++				{
++					*dst++ = bg;
++				}
++				for( int x = 0; x < VDP_WIDTH; x++ )
++				{
++					*dst++ = m_ColorTable565[ *src++ & 0x1F ];
++				}
++				for( int x = 0; x < RETRO_VDP_BORDER_X; x++ )
++				{
++					*dst++ = bg;
++				}
++			}
++
++			for( int y = 0; y < RETRO_VDP_BORDER_Y; y++ )
++			{
++				std::fill( dst, dst + RETRO_VDP_BORDER_WIDTH, bg );
++				dst += RETRO_VDP_BORDER_WIDTH;
++			}
++		}
++	}
++	else
++	{
++		uint32_t bg = m_ColorTable8888[ 0 ];
++
++		if( m_ScreenSource == nullptr )
++		{
++			unsigned total = GetOutputWidth( ) * GetOutputHeight( );
++			std::fill( m_FrameBuffer8888, m_FrameBuffer8888 + total, bg );
++			return;
++		}
++
++		if( !m_ShowBorders )
++		{
++			const UINT8 *src = m_ScreenSource;
++			uint32_t *dst = m_FrameBuffer8888;
++			for( int i = 0; i < VDP_WIDTH * VDP_HEIGHT; i++ )
++			{
++				dst[ i ] = m_ColorTable8888[ src[ i ] & 0x1F ];
++			}
++		}
++		else
++		{
++			uint32_t *dst = m_FrameBuffer8888;
++			for( int y = 0; y < RETRO_VDP_BORDER_Y; y++ )
++			{
++				std::fill( dst, dst + RETRO_VDP_BORDER_WIDTH, bg );
++				dst += RETRO_VDP_BORDER_WIDTH;
++			}
++
++			const UINT8 *src = m_ScreenSource;
++			for( int y = 0; y < VDP_HEIGHT; y++ )
++			{
++				for( int x = 0; x < RETRO_VDP_BORDER_X; x++ )
++				{
++					*dst++ = bg;
++				}
++				for( int x = 0; x < VDP_WIDTH; x++ )
++				{
++					*dst++ = m_ColorTable8888[ *src++ & 0x1F ];
++				}
++				for( int x = 0; x < RETRO_VDP_BORDER_X; x++ )
++				{
++					*dst++ = bg;
++				}
++			}
++
++			for( int y = 0; y < RETRO_VDP_BORDER_Y; y++ )
++			{
++				std::fill( dst, dst + RETRO_VDP_BORDER_WIDTH, bg );
++				dst += RETRO_VDP_BORDER_WIDTH;
++			}
++		}
++	}
++}
++
++void cRetroTMS9918A::UpdateCharacterPatternGraphics( int ch, UINT8 fore, UINT8 back, UINT8 *pattern )
++{
++	UINT8 *pData = m_CharacterPattern[ ch ];
++
++	for( int y = 0; y < 8; y++ )
++	{
++		UINT8 row = *pattern++;
++		*pData++ = ( row & 0x80 ) ? fore : back;
++		*pData++ = ( row & 0x40 ) ? fore : back;
++		*pData++ = ( row & 0x20 ) ? fore : back;
++		*pData++ = ( row & 0x10 ) ? fore : back;
++		*pData++ = ( row & 0x08 ) ? fore : back;
++		*pData++ = ( row & 0x04 ) ? fore : back;
++		*pData++ = ( row & 0x02 ) ? fore : back;
++		*pData++ = ( row & 0x01 ) ? fore : back;
++	}
++}
++
++void cRetroTMS9918A::UpdateCharacterPatternBitMap( int ch, UINT8 *pattern )
++{
++	UINT8 *pColor = reinterpret_cast<sBitmapColorTable *>( m_Memory + m_ColorTableIndex )->data[ ch & m_ColorTableMask ];
++	UINT8 *pData = m_CharacterPattern[ ch ];
++
++	for( int y = 0; y < 8; y++ )
++	{
++		UINT8 row  = *pattern++;
++		UINT8 fore = static_cast<UINT8>( pColor[ y ] >> 4 );
++		UINT8 back = static_cast<UINT8>( pColor[ y ] & 0x0F );
++		*pData++ = ( row & 0x80 ) ? fore : back;
++		*pData++ = ( row & 0x40 ) ? fore : back;
++		*pData++ = ( row & 0x20 ) ? fore : back;
++		*pData++ = ( row & 0x10 ) ? fore : back;
++		*pData++ = ( row & 0x08 ) ? fore : back;
++		*pData++ = ( row & 0x04 ) ? fore : back;
++		*pData++ = ( row & 0x02 ) ? fore : back;
++		*pData++ = ( row & 0x01 ) ? fore : back;
++	}
++}
++
++void cRetroTMS9918A::UpdateScreenGraphics( int x, int y, int ch )
++{
++	UINT8 *pSrcData = m_CharacterPattern[ ch ];
++	UINT8 *pDstData = m_BitmapScreen + (( y * 8 ) * VDP_WIDTH + ( x * 8 ));
++
++	for( int row = 0; row < 8; row++ )
++	{
++		memcpy( pDstData, pSrcData, 8 );
++		pSrcData += 8;
++		pDstData += VDP_WIDTH;
++	}
++}
++
++void cRetroTMS9918A::UpdateScreenText( int x, int y, int ch )
++{
++	UINT8 *pSrcData = m_CharacterPattern[ ch ];
++	UINT8 *pDstData = m_BitmapScreen + ( y * 8 * VDP_WIDTH + x * 6 + 8 );
++
++	for( int row = 0; row < 8; row++ )
++	{
++		memcpy( pDstData, pSrcData, 6 );
++		pSrcData += 8;
++		pDstData += VDP_WIDTH;
++	}
++}
++
++void cRetroTMS9918A::UpdateScreenMultiColor( int x, int y, int ch )
++{
++	UINT8 back = static_cast<UINT8>( m_Register[ 7 ] & 0x0F );
++	UINT8 *pSrcData = &reinterpret_cast<sPatternDescriptor *>( m_Memory + m_PatternTableIndex )->data[ ch ][( y & 0x03 ) * 2 ];
++	UINT8 *pDstData = m_BitmapScreen + ( y * 8 * VDP_WIDTH + x * 8 );
++
++	for( int i = 0; i < 2; i++ )
++	{
++		UINT8 leftColor  = ( *pSrcData & 0xF0 ) ? ( *pSrcData >> 4 ) : back;
++		UINT8 rightColor = ( *pSrcData & 0x0F ) ? ( *pSrcData & 0x0F ) : back;
++
++		for( int row = 0; row < 4; row++ )
++		{
++			UINT8 *pDst = pDstData;
++			for( int col = 0; col < 4; col++ )
++			{
++				*pDst++ = leftColor;
++			}
++			for( int col = 0; col < 4; col++ )
++			{
++				*pDst++ = rightColor;
++			}
++			pDstData += VDP_WIDTH;
++		}
++
++		pSrcData++;
++	}
++}
++
++void cRetroTMS9918A::MarkScreenChanges( int ch )
++{
++	if( m_Memory == nullptr )
++	{
++		return;
++	}
++
++	UINT8 *screen = m_Memory + m_ImageTableIndex;
++	bool *changed = m_ScreenChanged;
++	int count     = m_CharUse[ ch ];
++	int max       = m_ImageTableSize;
++
++	if( m_Mode & VDP_M3 )
++	{
++		int index = ch & 0xFF00;
++		screen  += index;
++		changed += index;
++		ch  &= 0xFF;
++		max /= 3;
++	}
++
++	for( int i = max; i; i-- )
++	{
++		if( *screen++ == ch )
++		{
++			*changed = true;
++			if( --count == 0 )
++			{
++				break;
++			}
++		}
++		changed++;
++	}
++}
++
++void cRetroTMS9918A::DrawSprite( int index )
++{
++	sSpriteAttributeEntry *sprite = &reinterpret_cast<sSpriteAttribute *>( m_Memory + m_SpriteAttrTableIndex )->data[ index ];
++
++	UINT8 colorIndex = static_cast<UINT8>( sprite->earlyClock & 0x0F );
++	if( colorIndex == 0 )
++	{
++		return;
++	}
++
++	int count = ( m_Register[ 1 ] & VDP_SPRITE_SIZE ) ? 4 : 1;
++	int size  = ( m_Register[ 1 ] & VDP_SPRITE_MAGNIFY ) ? 16 : 8;
++
++	UINT8 *pScreen = m_BitmapSpriteScreen;
++
++	for( int i = 0; i < count; i++ )
++	{
++		int posX = static_cast<int>( sprite->posX ) + ( i / 2 ) * size;
++		if( sprite->earlyClock & 0x80 )
++		{
++			posX -= 32;
++		}
++
++		if( posX >= VDP_WIDTH )
++		{
++			continue;
++		}
++
++		UINT8 row       = static_cast<UINT8>( sprite->posY + 1 + ( i % 2 ) * size );
++		UINT8 *pDstData = pScreen + posX;
++		UINT8 *pattern  = reinterpret_cast<sSpriteDescriptor *>( m_Memory + m_SpriteDescTableIndex )->data[( sprite->patternIndex + i ) % 256 ];
++
++		for( int y = 0; y < size; y++, row++ )
++		{
++			if(( row < VDP_HEIGHT ) && ( index <= m_MaxSprite[ row ] ))
++			{
++				UINT8 bits   = *pattern;
++				UINT8 *pData = pDstData + row * VDP_WIDTH;
++
++				if( bits )
++				{
++					for( int x = 0, col = posX; x < size; x++, col++ )
++					{
++						if( col >= VDP_WIDTH )
++						{
++							break;
++						}
++						if(( bits & 0x80 ) && ( col >= 0 ))
++						{
++							*pData = colorIndex;
++						}
++						pData++;
++						if(( size == 8 ) || ( x & 1 ))
++						{
++							bits <<= 1;
++						}
++					}
++				}
++			}
++
++			if(( size == 8 ) || ( y & 1 ))
++			{
++				pattern++;
++			}
++		}
++	}
++}
++
++bool cRetroTMS9918A::RefreshInvalid( )
++{
++	bool needsUpdate = m_ColorsChanged;
++
++	if( needsUpdate )
++	{
++		m_ColorsChanged = false;
++
++		UINT8 fore = static_cast<UINT8>( m_Register[ 7 ] >> 4 );
++		UINT8 back = static_cast<UINT8>( m_Register[ 7 ] & 0x0F );
++
++		memset( m_BitmapScreen, back, sizeof( m_BitmapScreen ));
++
++		for( int y = 0; y < VDP_HEIGHT; y++ )
++		{
++			UINT8 *pDst = m_BitmapScreen + y * VDP_WIDTH + 8;
++			for( int x = 0; x < 40 * 6; x++ )
++			{
++				pDst[ x ] = ( x % 6 < 4 ) ? fore : back;
++			}
++		}
++	}
++
++	return needsUpdate;
++}
++
++bool cRetroTMS9918A::RefreshGraphics( )
++{
++	if( m_Memory == nullptr )
++	{
++		return false;
++	}
++
++	UINT8 fore = static_cast<UINT8>( m_Register[ 7 ] >> 4 );
++	UINT8 back = static_cast<UINT8>( m_Register[ 7 ] & 0x0F );
++
++	for( int ch = 0; ch < 256; ch++ )
++	{
++		if( !m_TextMode && (( ch & 0x07 ) == 0 ))
++		{
++			fore = static_cast<UINT8>( reinterpret_cast<sColorTable *>( m_Memory + m_ColorTableIndex )->data[ ch / 8 ] >> 4 );
++			back = static_cast<UINT8>( reinterpret_cast<sColorTable *>( m_Memory + m_ColorTableIndex )->data[ ch / 8 ] & 0x0F );
++		}
++		if( m_PatternChanged[ ch ] && m_CharUse[ ch ] )
++		{
++			UpdateCharacterPatternGraphics( ch, fore, back, reinterpret_cast<UINT8 *>( &reinterpret_cast<sPatternDescriptor *>( m_Memory + m_PatternTableIndex )->data[ ch ] ));
++			m_PatternChanged[ ch ] = false;
++			MarkScreenChanges( ch );
++		}
++	}
++
++	bool needsUpdate = false;
++	bool *changed = m_ScreenChanged;
++	UINT8 *chr = m_Memory + m_ImageTableIndex;
++
++	int height = GetScreenHeight( );
++	int width  = GetScreenWidth( );
++	for( int y = 0; y < height; y++ )
++	{
++		for( int x = 0; x < width; x++ )
++		{
++			if( *changed++ )
++			{
++				if( m_TextMode )
++				{
++					UpdateScreenText( x, y, *chr );
++				}
++				else
++				{
++					UpdateScreenGraphics( x, y, *chr );
++				}
++				needsUpdate = true;
++			}
++			chr++;
++		}
++	}
++
++	if( needsUpdate )
++	{
++		memset( m_ScreenChanged, false, sizeof( m_ScreenChanged ));
++	}
++
++	if( m_TextMode && m_ColorsChanged )
++	{
++		for( int y = 0; y < height * 8; y++ )
++		{
++			memset( m_BitmapScreen + y * VDP_WIDTH, back, 8 );
++			memset( m_BitmapScreen + y * VDP_WIDTH + ( 40 * 6 + 8 ), back, 8 );
++		}
++
++		m_ColorsChanged = false;
++		needsUpdate = true;
++	}
++
++	return needsUpdate;
++}
++
++bool cRetroTMS9918A::RefreshBitMap( )
++{
++	if( m_Memory == nullptr )
++	{
++		return false;
++	}
++
++	for( int ch = 0; ch < 3 * 256; ch++ )
++	{
++		if( m_PatternChanged[ ch ] && m_CharUse[ ch ] )
++		{
++			UpdateCharacterPatternBitMap( ch, reinterpret_cast<UINT8 *>( reinterpret_cast<sPatternDescriptor *>( m_Memory + m_PatternTableIndex )->data[ ch & m_PatternTableMask ] ));
++			m_PatternChanged[ ch ] = false;
++			MarkScreenChanges( ch );
++		}
++	}
++
++	bool needsUpdate = false;
++	UINT8 *chr = m_Memory + m_ImageTableIndex;
++
++	for( unsigned int i = 0; i < m_ImageTableSize; i++ )
++	{
++		if( m_ScreenChanged[ i ] )
++		{
++			if( m_TextMode )
++			{
++				UpdateScreenText( i % 40, i / 40, chr[ i ] );
++			}
++			else
++			{
++				UpdateScreenGraphics( i % 32, i / 32, ( i & 0xFF00 ) + chr[ i ] );
++			}
++			needsUpdate = true;
++		}
++	}
++
++	if( needsUpdate )
++	{
++		memset( m_ScreenChanged, false, sizeof( m_ScreenChanged ));
++	}
++
++	return needsUpdate;
++}
++
++bool cRetroTMS9918A::RefreshMultiColor( )
++{
++	if( m_Memory == nullptr )
++	{
++		return false;
++	}
++
++	bool needsUpdate = false;
++	UINT8 *chr = m_Memory + m_ImageTableIndex;
++
++	for( unsigned int i = 0; i < m_ImageTableSize; i++ )
++	{
++		UINT8 index = chr[ i ];
++		if( m_ScreenChanged[ i ] || m_PatternChanged[ index ] )
++		{
++			UpdateScreenMultiColor( i % 32, i / 32, index );
++			needsUpdate = true;
++		}
++	}
++
++	if( needsUpdate )
++	{
++		memset( m_ScreenChanged, false, sizeof( m_ScreenChanged ));
++		memset( m_PatternChanged, false, sizeof( m_PatternChanged ));
++	}
++
++	return needsUpdate;
++}
++
++const UINT8 *cRetroTMS9918A::UpdateSprites( )
++{
++	if( m_Memory == nullptr )
++	{
++		return m_BitmapScreen;
++	}
++
++	sSpriteAttributeEntry *sprite = &reinterpret_cast<sSpriteAttribute *>( m_Memory + m_SpriteAttrTableIndex )->data[ 0 ];
++
++	int i;
++	for( i = 0; i < 32; i++ )
++	{
++		if( sprite[ i ].posY == 0xD0 )
++		{
++			break;
++		}
++	}
++
++	if( i == 0 )
++	{
++		m_SpritesChanged = false;
++		return m_BitmapScreen;
++	}
++
++	memcpy( m_BitmapSpriteScreen, m_BitmapScreen, sizeof( m_BitmapScreen ));
++
++	while( --i >= 0 )
++	{
++		DrawSprite( i );
++	}
++
++	m_SpritesChanged = false;
++
++	return m_BitmapSpriteScreen;
++}
++
++void cRetroTMS9918A::UpdateScreen( )
++{
++	m_ScreenSource = m_TextMode ? m_BitmapScreen : UpdateSprites( );
++}
++
++void cRetroTMS9918A::FlipAddressing( )
++{
++	cTMS9918A::FlipAddressing( );
++	MarkAllDirty( );
++}
++
++bool cRetroTMS9918A::SetMode( int mode )
++{
++	if( cTMS9918A::SetMode( mode ) == false )
++	{
++		return false;
++	}
++
++	m_TextMode      = ( m_Mode & VDP_M1 ) ? true : false;
++	m_ColorsChanged = true;
++	m_ChangesMade   = true;
++
++	memset( m_PatternChanged, true, sizeof( m_PatternChanged ));
++	memset( m_ScreenChanged, true, sizeof( m_ScreenChanged ));
++	memset( m_CharUse, 0, sizeof( m_CharUse ));
++
++	if( m_Memory != nullptr )
++	{
++		UINT8 *chr = m_Memory + m_ImageTableIndex;
++
++		for( unsigned int i = 0; i < m_ImageTableSize; i++ )
++		{
++			int index = ( m_Mode & VDP_M3 ) ? ( i & 0xFF00 ) : 0;
++			m_CharUse[ index + *chr++ ]++;
++		}
++	}
++
++	return true;
++}
+diff -ruN a/ti99sim/src/libretro/tms9918a-retro.hpp b/ti99sim/src/libretro/tms9918a-retro.hpp
+--- a/ti99sim/src/libretro/tms9918a-retro.hpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/tms9918a-retro.hpp	2026-10-31 22:29:28
+@@ -0,0 +1,138 @@
++//----------------------------------------------------------------------------
++//
++// File:        tms9918a-retro.hpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro software VDP renderer for the TMS9918A
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef TMS9918A_RETRO_HPP_
++#define TMS9918A_RETRO_HPP_
++
++#include <cstdint>
++#include "tms9918a.hpp"
++
++#define RETRO_VDP_BORDER_X      16
++#define RETRO_VDP_BORDER_Y      12
++#define RETRO_VDP_BORDER_WIDTH  ( VDP_WIDTH + 2 * RETRO_VDP_BORDER_X )
++#define RETRO_VDP_BORDER_HEIGHT ( VDP_HEIGHT + 2 * RETRO_VDP_BORDER_Y )
++
++enum class eRetroPalette
++{
++	DEFAULT = 0,
++	NTSC    = 1,
++	RGB     = 2,
++	MONO    = 3
++};
++
++class cRetroTMS9918A :
++	public cTMS9918A
++{
++	friend class cRetroTI994A;
++
++	uint32_t        m_ColorTable8888[ 17 ];
++	uint16_t        m_ColorTable565 [ 17 ];
++	eRetroPalette   m_Palette;
++	bool            m_ShowBorders;
++	bool            m_UseRGB565;
++
++	bool            m_TextMode;
++	bool            m_ChangesMade;
++	bool            m_BlankChanged;
++	bool            m_ColorsChanged;
++	bool            m_SpritesChanged;
++
++	bool            m_ScreenChanged[ 0x03C0 ];
++	bool            m_PatternChanged[ 256 * 3 ];
++	int             m_CharUse[ 256 * 3 ];
++	int             m_SpriteCharUse[ 256 ];
++
++	UINT8           m_CharacterPattern[ 3 * 256 ][ 8 * 8 ];
++	UINT8           m_BitmapScreen[ VDP_WIDTH * VDP_HEIGHT ];
++	UINT8           m_BitmapSpriteScreen[ VDP_WIDTH * VDP_HEIGHT ];
++	const UINT8    *m_ScreenSource;
++
++	uint16_t        m_FrameBuffer565 [ RETRO_VDP_BORDER_WIDTH * RETRO_VDP_BORDER_HEIGHT ];
++	uint32_t        m_FrameBuffer8888[ RETRO_VDP_BORDER_WIDTH * RETRO_VDP_BORDER_HEIGHT ];
++
++public:
++
++	cRetroTMS9918A( int refreshRate = 60 );
++
++	// iStateObject methods
++	virtual bool ParseState( const sStateSection &state ) override;
++
++	// iTMS9918A methods
++	virtual void Reset( ) override;
++	virtual void WriteData( UINT8 data ) override;
++	virtual void WriteRegister( size_t reg, UINT8 value ) override;
++	virtual bool Retrace( ) override;
++	virtual void Render( ) override;
++
++	void SetPalette( eRetroPalette palette );
++	eRetroPalette GetPalette( ) const { return m_Palette; }
++
++	void SetShowBorders( bool show );
++	bool GetShowBorders( ) const { return m_ShowBorders; }
++
++	void SetUseRGB565( bool rgb565 );
++	bool GetUseRGB565( ) const { return m_UseRGB565; }
++
++	void SetRefreshRate( int refreshRate );
++
++	unsigned GetOutputWidth( ) const  { return m_ShowBorders ? RETRO_VDP_BORDER_WIDTH  : VDP_WIDTH; }
++	unsigned GetOutputHeight( ) const { return m_ShowBorders ? RETRO_VDP_BORDER_HEIGHT : VDP_HEIGHT; }
++	size_t   GetOutputPitch( ) const  { return GetOutputWidth( ) * ( m_UseRGB565 ? sizeof( uint16_t ) : sizeof( uint32_t )); }
++
++	const void *GetFrameBuffer( ) const { return m_UseRGB565 ? static_cast<const void *>( m_FrameBuffer565 ) : static_cast<const void *>( m_FrameBuffer8888 ); }
++	uint16_t *GetFrameBuffer565( )  { return m_FrameBuffer565; }
++	uint32_t *GetFrameBuffer8888( ) { return m_FrameBuffer8888; }
++
++	void MarkAllDirty( );
++
++protected:
++
++	void RebuildPalette( );
++	void ComposeFrameBuffer( );
++
++	void DrawSprite( int index );
++	const UINT8 *UpdateSprites( );
++
++	void UpdateCharacterPatternGraphics( int ch, UINT8 fore, UINT8 back, UINT8 *pattern );
++	void UpdateCharacterPatternBitMap( int ch, UINT8 *pattern );
++
++	void UpdateScreenGraphics( int x, int y, int ch );
++	void UpdateScreenText( int x, int y, int ch );
++	void UpdateScreenMultiColor( int x, int y, int ch );
++
++	int ScreenSize( ) const      { return m_TextMode ? 24 * 40 : 24 * 32; }
++	int GetCellWidth( ) const    { return m_TextMode ? 6 : 8; }
++	int GetScreenWidth( ) const  { return m_TextMode ? 40 : 32; }
++	int GetScreenHeight( ) const { return 24; }
++
++	void MarkScreenChanges( int ch );
++
++	bool RefreshInvalid( );
++	bool RefreshGraphics( );
++	bool RefreshBitMap( );
++	bool RefreshMultiColor( );
++
++	void UpdateScreen( );
++
++	// cTMS9918A protected methods
++	virtual bool SetMode( int mode ) override;
++	virtual void FlipAddressing( ) override;
++
++	virtual ~cRetroTMS9918A( ) override;
++
++private:
++
++	cRetroTMS9918A( const cRetroTMS9918A & ) = delete;
++	void operator =( const cRetroTMS9918A & ) = delete;
++};
++
++#endif
+diff -ruN a/ti99sim/src/libretro/tms9919-retro.cpp b/ti99sim/src/libretro/tms9919-retro.cpp
+--- a/ti99sim/src/libretro/tms9919-retro.cpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/tms9919-retro.cpp	2026-10-31 22:29:28
+@@ -0,0 +1,255 @@
++//----------------------------------------------------------------------------
++//
++// File:        tms9919-retro.cpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro synchronous PSG + TMS5220 audio synthesizer
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#include <algorithm>
++#include <cstring>
++#include "common.hpp"
++#include "logger.hpp"
++#include "itms9900.hpp"
++#include "itms5220.hpp"
++#include "tms9919-retro.hpp"
++
++DBG_REGISTER( __FILE__ );
++
++#define NOISE_RESET              0x00F35
++#define NOISE_WHITE_GENERATOR    0x12000
++#define NOISE_PERIODIC_GENERATOR 0x08000
++#define CLOCK_FREQUENCY          3579545
++
++cRetroTMS9919::cRetroTMS9919( int sampleFreq ) :
++	cBaseObject( "cRetroTMS9919" ),
++	m_SampleRate( sampleFreq ),
++	m_MasterVolume( 75 ),
++	m_VolumeTable( ),
++	m_Info( ),
++	m_ShiftRegister( NOISE_RESET ),
++	m_NoiseGenerator( NOISE_WHITE_GENERATOR ),
++	m_pCPU( nullptr ),
++	m_FrameStartClocks( 0 ),
++	m_FrameTotalClocks( 50000 ),
++	m_FrameTargetSamples( 735 ),
++	m_RenderedSamples( 0 ),
++	m_MonoBuffer( )
++{
++	float volume = 32768.0f / 4.0f;
++	for( unsigned int i = 0; i < SIZE( m_VolumeTable ) - 1; i++ )
++	{
++		m_VolumeTable[ i ] = static_cast<int>( volume );
++		volume = volume / 1.258925412f; // Reduce volume by 2dB per step
++	}
++	m_VolumeTable[ 15 ] = 0;
++
++	uint8_t color = m_NoiseColor;
++	uint8_t type  = m_NoiseType;
++	m_NoiseColor  = static_cast<uint8_t>( -1 );
++	m_NoiseType   = static_cast<uint8_t>( -1 );
++	SetNoise( color, type );
++}
++
++cRetroTMS9919::~cRetroTMS9919( )
++{
++}
++
++int cRetroTMS9919::GetPlaybackFrequency( )
++{
++	return m_SampleRate;
++}
++
++void cRetroTMS9919::SetMasterVolume( int volume )
++{
++	m_MasterVolume = std::clamp( volume, 0, 100 );
++}
++
++void cRetroTMS9919::BeginFrame( uint32_t startClocks, uint32_t totalClocks, int targetSamples )
++{
++	m_FrameStartClocks   = startClocks;
++	m_FrameTotalClocks   = ( totalClocks > 0 ) ? totalClocks : 50000;
++	m_FrameTargetSamples = std::clamp( targetSamples, 1, static_cast<int>( SIZE( m_MonoBuffer )));
++	m_RenderedSamples    = 0;
++}
++
++void cRetroTMS9919::CatchUpToClocks( uint32_t currentClocks )
++{
++	uint32_t elapsed = currentClocks - m_FrameStartClocks;
++	if( static_cast<int32_t>( elapsed ) <= 0 )
++	{
++		return;
++	}
++
++	int targetSample = static_cast<int>(( static_cast<uint64_t>( elapsed ) * m_FrameTargetSamples ) / m_FrameTotalClocks );
++	targetSample = std::clamp( targetSample, m_RenderedSamples, m_FrameTargetSamples );
++
++	int count = targetSample - m_RenderedSamples;
++	if( count > 0 )
++	{
++		RenderSamples( m_MonoBuffer + m_RenderedSamples, count );
++		m_RenderedSamples = targetSample;
++	}
++}
++
++size_t cRetroTMS9919::EndFrame( int16_t *stereoOut )
++{
++	int remaining = m_FrameTargetSamples - m_RenderedSamples;
++	if( remaining > 0 )
++	{
++		RenderSamples( m_MonoBuffer + m_RenderedSamples, remaining );
++		m_RenderedSamples = m_FrameTargetSamples;
++	}
++
++	for( int i = 0; i < m_FrameTargetSamples; i++ )
++	{
++		int32_t sample = ( static_cast<int32_t>( m_MonoBuffer[ i ] ) * m_MasterVolume ) / 100;
++		int16_t clamped = static_cast<int16_t>( std::clamp( sample, -32768, 32767 ));
++		stereoOut[ i * 2 + 0 ] = clamped;
++		stereoOut[ i * 2 + 1 ] = clamped;
++	}
++
++	return static_cast<size_t>( m_FrameTargetSamples );
++}
++
++void cRetroTMS9919::WriteData( UINT8 data )
++{
++	if( m_pCPU != nullptr )
++	{
++		CatchUpToClocks( m_pCPU->GetClocks( ));
++	}
++
++	cTMS9919::WriteData( data );
++}
++
++void cRetroTMS9919::RenderSamples( INT16 *dst, int samples )
++{
++	if( samples <= 0 )
++	{
++		return;
++	}
++
++	memset( dst, 0, sizeof( INT16 ) * samples );
++
++	for( int i = 0; i < 4; i++ )
++	{
++		sVoiceInfo *info = &m_Info[ i ];
++		if(( m_Attenuation[ i ] != 15 ) && ( info->period >= 1.0f ))
++		{
++			int left = samples;
++			int j = 0;
++			do
++			{
++				int count = ( info->toggle < left ) ? static_cast<int>( info->toggle ) : left;
++				left -= count;
++				info->toggle -= count;
++				while( count-- )
++				{
++					dst[ j++ ] += static_cast<INT16>( info->setting );
++				}
++				if( info->toggle < 1.0f )
++				{
++					info->toggle += info->period;
++					if( i < 3 )
++					{
++						info->setting = -info->setting;
++					}
++					else
++					{
++						if( m_ShiftRegister & 1 )
++						{
++							m_ShiftRegister ^= m_NoiseGenerator;
++							if( m_ShiftRegister == 0 )
++							{
++								m_ShiftRegister = NOISE_RESET;
++							}
++							info->setting = -info->setting;
++						}
++						m_ShiftRegister >>= 1;
++					}
++				}
++			}
++			while( left > 0 );
++		}
++	}
++
++	if( m_pSpeechSynthesizer != nullptr )
++	{
++		m_pSpeechSynthesizer->AudioCallback( dst, samples );
++	}
++}
++
++void cRetroTMS9919::SetNoise( uint8_t color, uint8_t type )
++{
++	bool reset = ( color != m_NoiseColor );
++
++	cTMS9919::SetNoise( color, type );
++
++	if( reset )
++	{
++		m_ShiftRegister = NOISE_RESET;
++	}
++	m_NoiseGenerator = ( color == NOISE_WHITE ) ? NOISE_WHITE_GENERATOR : NOISE_PERIODIC_GENERATOR;
++
++	sVoiceInfo *info = &m_Info[ 3 ];
++
++	if( m_Frequency[ 3 ] != 0 )
++	{
++		int volume    = m_VolumeTable[ m_Attenuation[ 3 ] & 0x0F ];
++		info->period  = static_cast<float>( m_SampleRate ) / ( CLOCK_FREQUENCY / static_cast<float>( m_Frequency[ 3 ] )) / 2.0f;
++		info->setting = ( info->setting > 0 ) ? volume : -volume;
++	}
++	else
++	{
++		info->period = 0.0f;
++	}
++}
++
++void cRetroTMS9919::SetFrequency( uint8_t tone, uint16_t freq )
++{
++	cTMS9919::SetFrequency( tone, freq );
++
++	if( tone < 3 )
++	{
++		sVoiceInfo *info = &m_Info[ tone ];
++
++		if(( freq < m_SampleRate / 2 ) && ( freq != 0 ))
++		{
++			int volume    = m_VolumeTable[ m_Attenuation[ tone ] & 0x0F ];
++			info->period  = static_cast<float>( m_SampleRate ) / ( CLOCK_FREQUENCY / static_cast<float>( freq )) / 2.0f;
++			info->setting = ( info->setting > 0 ) ? volume : -volume;
++		}
++		else
++		{
++			info->period  = 512.0f;
++			info->setting = 0;
++		}
++	}
++}
++
++void cRetroTMS9919::SetAttenuation( uint8_t tone, uint8_t atten )
++{
++	cTMS9919::SetAttenuation( tone, atten );
++
++	if( tone < 4 )
++	{
++		sVoiceInfo *info = &m_Info[ tone ];
++		int volume    = m_VolumeTable[ m_Attenuation[ tone ] & 0x0F ];
++		info->setting = ( info->setting > 0 ) ? volume : -volume;
++	}
++}
++
++void cRetroTMS9919::RefreshVoices( )
++{
++	for( uint8_t i = 0; i < 3; i++ )
++	{
++		SetFrequency( i, m_Frequency[ i ] );
++		SetAttenuation( i, m_Attenuation[ i ] );
++	}
++	SetNoise( m_NoiseColor, m_NoiseType );
++	SetAttenuation( 3, m_Attenuation[ 3 ] );
++}
+diff -ruN a/ti99sim/src/libretro/tms9919-retro.hpp b/ti99sim/src/libretro/tms9919-retro.hpp
+--- a/ti99sim/src/libretro/tms9919-retro.hpp	1969-12-31 17:00:00
++++ b/ti99sim/src/libretro/tms9919-retro.hpp	2026-10-31 22:29:28
+@@ -0,0 +1,85 @@
++//----------------------------------------------------------------------------
++//
++// File:        tms9919-retro.hpp
++// Date:        31-Oct-2026
++// Programmer:  Aaron Szymanski
++//
++// Description: Libretro synchronous PSG + TMS5220 audio synthesizer
++//
++// SPDX-License-Identifier: GPL-2.0-or-later
++//
++//----------------------------------------------------------------------------
++
++#ifndef TMS9919_RETRO_HPP_
++#define TMS9919_RETRO_HPP_
++
++#include <cstddef>
++#include <cstdint>
++#include "tms9919.hpp"
++
++struct iTMS9900;
++
++class cRetroTMS9919 :
++	public cTMS9919
++{
++	friend class cRetroTI994A;
++
++	struct sVoiceInfo
++	{
++		float  period;
++		float  toggle;
++		int    setting;
++	};
++
++	int          m_SampleRate;
++	int          m_MasterVolume;
++	int          m_VolumeTable[ 16 ];
++	sVoiceInfo   m_Info[ 4 ];
++	int          m_ShiftRegister;
++	int          m_NoiseGenerator;
++
++	iTMS9900    *m_pCPU;
++	uint32_t     m_FrameStartClocks;
++	uint32_t     m_FrameTotalClocks;
++	int          m_FrameTargetSamples;
++	int          m_RenderedSamples;
++
++	INT16        m_MonoBuffer[ 2048 ];
++
++	virtual void SetNoise( uint8_t color, uint8_t type ) override;
++	virtual void SetFrequency( uint8_t tone, uint16_t freq ) override;
++	virtual void SetAttenuation( uint8_t tone, uint8_t atten ) override;
++
++	void RenderSamples( INT16 *dst, int count );
++
++public:
++
++	cRetroTMS9919( int sampleFreq = 44100 );
++
++	void SetCPU( iTMS9900 *cpu ) { m_pCPU = cpu; }
++
++	// iTMS9919 Methods
++	virtual void WriteData( UINT8 data ) override;
++	virtual int GetPlaybackFrequency( ) override;
++
++	// Frame-sliced synchronous audio generation
++	void BeginFrame( uint32_t startClocks, uint32_t totalClocks, int targetSamples );
++	void CatchUpToClocks( uint32_t currentClocks );
++	size_t EndFrame( int16_t *stereoOut );
++
++	int  GetMasterVolume( ) const { return m_MasterVolume; }
++	void SetMasterVolume( int volume );
++
++	void RefreshVoices( );
++
++protected:
++
++	virtual ~cRetroTMS9919( ) override;
++
++private:
++
++	cRetroTMS9919( const cRetroTMS9919 & ) = delete;
++	void operator =( const cRetroTMS9919 & ) = delete;
++};
++
++#endif
 diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
 --- a/ti99sim/src/sdl/Makefile	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/Makefile	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/Makefile	2026-10-31 22:29:28
 @@ -9,7 +9,9 @@
  
  XLIBS	+= -lpthread
@@ -373,7 +6542,7 @@ diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
  FILES	+= ti994a-sdl.cpp
 diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
 --- a/ti99sim/src/sdl/bitmap.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-31 22:29:28
 @@ -28,6 +28,7 @@
  
  #include <algorithm>
@@ -420,7 +6589,7 @@ diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
  	{
 diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 --- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/sdl/keymap.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-31 22:29:29
 @@ -0,0 +1,222 @@
 +//----------------------------------------------------------------------------
 +//
@@ -646,7 +6815,7 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +}
 diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
 --- a/ti99sim/src/sdl/main.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/main.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/main.cpp	2026-10-31 22:29:29
 @@ -44,6 +44,8 @@
  #include "support.hpp"
  #include "option.hpp"
@@ -658,7 +6827,7 @@ diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
  static sRGBQUAD ColorTable[ 3 ][ 17 ] =
 diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 --- a/ti99sim/src/sdl/ti994a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-31 22:29:29
 @@ -61,6 +61,10 @@
  {
  	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
@@ -1240,7 +7409,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  
 diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
 --- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-31 22:29:28
 @@ -37,6 +37,15 @@
  
  DBG_REGISTER( __FILE__ );
@@ -1342,7 +7511,7 @@ diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
  	}
 diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
 --- a/ti99sim/src/sdl/tms9919-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-31 14:31:31
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-31 22:29:28
 @@ -89,6 +89,17 @@
  	int ratio   = 44100 / sampleFreq;
  	int samples = DEFAULT_SAMPLES / ratio;

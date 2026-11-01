@@ -39,6 +39,7 @@ SRC_DIRS = \
 	src/core \
 	src/console \
 	src/sdl \
+	src/libretro \
 	src/util
 
 install: ti99sim

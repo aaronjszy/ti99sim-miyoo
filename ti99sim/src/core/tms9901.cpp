@@ -51,6 +51,7 @@ cTMS9901::cTMS9901( ) :
 	m_LastDelta( 0 ),
 	m_DecrementClock( 0 ),
 	m_CapsLock( false ),
+	m_AlphaLockFix( false ),
 	m_ColumnSelect( 0 ),
 	m_HideShift( 0 ),
 	m_StateTable( ),
@@ -213,6 +214,23 @@ void cTMS9901::WriteCRU( ADDRESS address, int data )
 		else
 		{
 			// We're in I/O mode
+			if(( address >= 1 ) && ( address <= 15 ) && ( m_PinState[ address ][ 0 ] != 0 ))
+			{
+				if(( m_PinState[ address ][ 1 ] != 1 ) && ( data == 1 ))
+				{
+					m_ActiveInterrupts++;
+					m_pCPU->SignalInterrupt( 1 );
+				}
+				else if(( m_PinState[ address ][ 1 ] == 1 ) && ( data == 0 ))
+				{
+					m_ActiveInterrupts--;
+					if( m_ActiveInterrupts == 0 )
+					{
+						m_pCPU->ClearInterrupt( 1 );
+					}
+				}
+			}
+
 			m_PinState[ address ][ 1 ] = ( char ) data;
 
 			if(( address >= 18 ) && ( address <= 20 ))
@@ -309,12 +327,9 @@ int cTMS9901::ReadCRU( ADDRESS address )
 		}
 		else if(( address >= 3 ) && ( address <= 10 ))
 		{
-			if(( m_CapsLock == false ) && ( address == 7 ))
+			if(( m_CapsLock == false ) && ( address == 7 ) && ( m_StateTable[ VK_CAPSLOCK ] != 0 ) && ( !m_AlphaLockFix || ( m_ColumnSelect < 6 )))
 			{
-				if( m_StateTable[ VK_CAPSLOCK ] != 0 )
-				{
-					retVal = 0;
-				}
+				retVal = 0;
 			}
 			else
 			{
@@ -625,4 +640,9 @@ void cTMS9901::SetJoystickButton( int index, bool value )
 	DBG_ASSERT(( index >= 0 ) && ( index < 2 ));
 
 	m_Joystick[ index ].isPressed = value;
+}
+
+void cTMS9901::SetAlphaLockFix( bool enable )
+{
+	m_AlphaLockFix = enable;
 }

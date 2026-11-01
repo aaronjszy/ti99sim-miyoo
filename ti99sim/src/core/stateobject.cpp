@@ -28,9 +28,11 @@
 //----------------------------------------------------------------------------
 
 #include <bitset>
+#include <charconv>
 #include <cstdio>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 #include "common.hpp"
 #include "logger.hpp"
 #include "stateobject.hpp"
@@ -229,6 +231,9 @@ template void sStateSection::store( const std::string &name, const uint16_t &val
 template void sStateSection::store( const std::string &name, const uint32_t &value, SaveFormat format );
 template void sStateSection::store( const std::string &name, const uint64_t &value, SaveFormat format );
 template void sStateSection::store( const std::string &name, const int &value, SaveFormat format );
+#if defined( __APPLE__ )
+template void sStateSection::store( const std::string &name, const size_t &value, SaveFormat format );
+#endif
 
 bool sStateSection::hasValue( const std::string &name ) const
 {
@@ -319,6 +324,9 @@ template void sStateSection::load( const std::string &name, uint16_t &value, Sav
 template void sStateSection::load( const std::string &name, uint32_t &value, SaveFormat format ) const;
 template void sStateSection::load( const std::string &name, uint64_t &value, SaveFormat format ) const;
 template void sStateSection::load( const std::string &name, int &value, SaveFormat format ) const;
+#if defined( __APPLE__ )
+template void sStateSection::load( const std::string &name, size_t &value, SaveFormat format ) const;
+#endif
 
 cStateObject::cStateObject( )
 {

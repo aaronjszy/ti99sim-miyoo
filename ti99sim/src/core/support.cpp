@@ -51,12 +51,26 @@ DBG_REGISTER( __FILE__ );
 
 constexpr char HOME_DIR[ ] = ".ti99sim";
 
+static std::filesystem::path g_LibretroSystemDir{ };
+static std::filesystem::path g_LibretroSaveDir{ };
+
+void SetLibretroPaths( const std::filesystem::path &systemDir, const std::filesystem::path &saveDir )
+{
+	g_LibretroSystemDir = systemDir;
+	g_LibretroSaveDir   = saveDir;
+}
+
 #if defined( OS_OS2 ) || defined( OS_WINDOWS )
 	#include <direct.h>
 #endif
 
 std::filesystem::path GetCommonPath( )
 {
+	if( !g_LibretroSystemDir.empty( ))
+	{
+		return g_LibretroSystemDir / "ti99sim";
+	}
+
 	static std::filesystem::path common{ };
 
 	if( common.empty( ))
@@ -107,6 +121,11 @@ std::filesystem::path GetCommonPath( )
 
 std::filesystem::path GetHomePath( )
 {
+	if( !g_LibretroSaveDir.empty( ))
+	{
+		return g_LibretroSaveDir;
+	}
+
 	static std::filesystem::path home{ };
 
 	if( home.empty( ))
@@ -279,6 +298,28 @@ std::filesystem::path LocateFile( const std::filesystem::path &directory, const 
 	std::filesystem::path fullname = directory.empty( ) ? filename : directory / filename;
 	std::filesystem::path fullpath;
 
+	if( !g_LibretroSystemDir.empty( ))
+	{
+		std::filesystem::path searchRoots[ ] =
+		{
+			g_LibretroSystemDir / "ti99sim",
+			g_LibretroSystemDir,
+			"/mnt/SDCARD/Emu/TI99"
+		};
+
+		for( const auto &root : searchRoots )
+		{
+			if( TryPath( root.string( ), fullname.string( )) == true )
+			{
+				return root / fullname;
+			}
+			if( !directory.empty( ) && ( TryPath( root.string( ), filename.string( )) == true ))
+			{
+				return root / filename;
+			}
+		}
+	}
+
 	// Try: ~/.ti99sim/path, /opt/ti99sim/path
 	if(( TryPath( fullpath = GetHomePath( ), fullname )   == true ) ||
 	   ( TryPath( fullpath = GetCommonPath( ), fullname ) == true ))
@@ -291,12 +332,18 @@ std::filesystem::path LocateFile( const std::filesystem::path &directory, const 
 
 std::list<std::filesystem::path> LocateFiles( const std::filesystem::path &directory, const std::string &extension )
 {
-	static std::filesystem::path paths[ ] =
+	std::vector<std::filesystem::path> paths;
+
+	if( !g_LibretroSystemDir.empty( ))
 	{
-		GetCommonPath( ),	// Try: <install-dir>/path
-		GetHomePath( ),		// Try: ~/.ti99sim/path
-		"."					// Try: CWD
-	};
+		paths.push_back( g_LibretroSystemDir / "ti99sim" );
+		paths.push_back( g_LibretroSystemDir );
+		paths.push_back( "/mnt/SDCARD/Emu/TI99" );
+	}
+
+	paths.push_back( GetCommonPath( ));	// Try: <install-dir>/path
+	paths.push_back( GetHomePath( ));	// Try: ~/.ti99sim/path
+	paths.push_back( "." );				// Try: CWD
 
 	std::map<std::filesystem::path,std::filesystem::path> files;
 
@@ -312,13 +359,21 @@ std::list<std::filesystem::path> LocateFiles( const std::filesystem::path &direc
 		}
 	};
 
-	for( auto path : paths )
+	for( auto &path : paths )
 	{
 		auto testDir = path / directory;
 
 		if( std::filesystem::exists( testDir ))
 		{
 			for( auto &entry : std::filesystem::directory_iterator( testDir ))
+			{
+				addFile( entry );
+			}
+		}
+
+		if( !g_LibretroSystemDir.empty( ) && !directory.empty( ) && std::filesystem::exists( path ))
+		{
+			for( auto &entry : std::filesystem::directory_iterator( path ))
 			{
 				addFile( entry );
 			}
@@ -416,9 +471,9 @@ std::string sha1( const void *data, size_t length )
 	return sha1.Digest( );
 }
 
-#if defined( OS_LINUX ) && defined( TI_NO_OPENSSL )
+#if defined( TI_NO_OPENSSL )
 
-	// Self-contained SHA-1 for targets without OpenSSL (e.g. Miyoo Mini)
+	// Self-contained SHA-1 for targets without OpenSSL (e.g. Miyoo Mini / Libretro)
 	struct SHA_CTX
 	{
 		uint32_t	h[ 5 ]{ 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0 };
