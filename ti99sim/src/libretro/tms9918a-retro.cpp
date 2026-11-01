@@ -204,6 +204,7 @@ void cRetroTMS9918A::MarkAllDirty( )
 	m_BlankChanged   = true;
 	m_ColorsChanged  = true;
 	m_SpritesChanged = true;
+	m_ScreenSource   = nullptr;
 
 	memset( m_ScreenChanged, true, sizeof( m_ScreenChanged ));
 	memset( m_PatternChanged, true, sizeof( m_PatternChanged ));

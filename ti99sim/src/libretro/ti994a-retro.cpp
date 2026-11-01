@@ -414,7 +414,7 @@ void *cRetroTI994A::GetSaveRAMPtr( ) const
 			sMemoryRegion *region = m_Cartridge->GetCpuMemory( i );
 			for( int j = 0; j < region->NumBanks; j++ )
 			{
-				if(( region->Bank[ j ].Flags & FLAG_BATTERY_BACKED ) && ( region->Bank[ j ].Data != nullptr ))
+				if((( region->Bank[ j ].Flags & FLAG_BATTERY_BACKED ) || ( region->Bank[ j ].Type == BANK_BATTERY_BACKED )) && ( region->Bank[ j ].Data != nullptr ))
 				{
 					return region->Bank[ j ].Data;
 				}
@@ -589,7 +589,7 @@ bool cRetroTI994A::Serialize( void *data, size_t size ) const
 			{
 				for( int b = 0; b < r->NumBanks; b++ )
 				{
-					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
+					if((( r->Bank[ b ].Type == BANK_RAM ) || ( r->Bank[ b ].Type == BANK_BATTERY_BACKED ) || ( r->Bank[ b ].Flags & FLAG_BATTERY_BACKED ) || !( r->Bank[ b ].Flags & FLAG_READ_ONLY )) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
 					{
 						memcpy( st->cartCpuRam[ cpuRamSlot++ ], r->Bank[ b ].Data, ROM_BANK_SIZE );
 					}
@@ -606,7 +606,7 @@ bool cRetroTI994A::Serialize( void *data, size_t size ) const
 			{
 				for( int b = 0; b < r->NumBanks; b++ )
 				{
-					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
+					if((( r->Bank[ b ].Type == BANK_RAM ) || ( r->Bank[ b ].Type == BANK_BATTERY_BACKED ) || ( r->Bank[ b ].Flags & FLAG_BATTERY_BACKED ) || !( r->Bank[ b ].Flags & FLAG_READ_ONLY )) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
 					{
 						memcpy( st->cartGromRam[ gromRamSlot++ ], r->Bank[ b ].Data, GROM_BANK_SIZE );
 					}
@@ -644,7 +644,15 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 	m_GromAddress      = st->gromAddress;
 	m_GromReadShift    = st->gromReadShift;
 	m_GromWriteShift   = st->gromWriteShift;
+	if( m_ActiveCRU != 0 )
+	{
+		DisableDevice( GetDevice( m_ActiveCRU ));
+	}
 	m_ActiveCRU        = st->activeCRU;
+	if( m_ActiveCRU != 0 )
+	{
+		EnableDevice( GetDevice( m_ActiveCRU ));
+	}
 	m_LastRetrace      = ClockCycleCounter - st->lastRetraceDelta;
 
 	Set32KExpansion( st->enable32K != 0 );
@@ -677,16 +685,55 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 	// TMS9918A VDP
 	if( m_RetroVDP != nullptr )
 	{
-		m_RetroVDP->m_Mode = 0xFF;
+		static const UINT8 mask[ 8 ] =
+		{
+			0xFF, 0xFF, 0x0F, 0xFF, 0x07, 0x7F, 0x07, 0xFF
+		};
+
 		for( size_t i = 0; i < 8; i++ )
 		{
-			m_RetroVDP->WriteRegister( i, st->vdpRegister[ i ] );
+			m_RetroVDP->m_Register[ i ] = st->vdpRegister[ i ] & mask[ i ];
 		}
+
+		UINT8 reg0 = m_RetroVDP->m_Register[ 0 ];
+		UINT8 reg1 = m_RetroVDP->m_Register[ 1 ];
+
+		m_RetroVDP->m_ColorTableSize   = ( reg0 & VDP_MODE_3_BIT ) ? 0x1800 : 0x0020;
+		m_RetroVDP->m_PatternTableSize = ( reg0 & VDP_MODE_3_BIT ) ? 0x1800 : 0x0800;
+		m_RetroVDP->m_ImageTableSize   = ( reg1 & VDP_MODE_1_BIT ) ? 0x03C0 : 0x0300;
+
+		int newMode = 0;
+		if( reg0 & VDP_MODE_3_BIT ) newMode |= VDP_M3;
+		if( reg1 & VDP_MODE_2_BIT ) newMode |= VDP_M2;
+		if( reg1 & VDP_MODE_1_BIT ) newMode |= VDP_M1;
+		m_RetroVDP->m_Mode = newMode;
+
+		m_RetroVDP->m_ImageTableIndex = m_RetroVDP->m_Register[ 2 ] * 0x0400;
+
+		UINT8 r3 = m_RetroVDP->m_Register[ 3 ];
+		m_RetroVDP->m_ColorTableIndex = ( newMode & VDP_M3 ) ? (( r3 & 0x80 ) ? 0x2000 : 0 ) : ( r3 * sizeof( sColorTable ));
+
+		UINT8 r4 = m_RetroVDP->m_Register[ 4 ];
+		m_RetroVDP->m_PatternTableIndex = ( newMode & VDP_M3 ) ? (( r4 & 0x04 ) ? 0x2000 : 0 ) : ( r4 * sizeof( sPatternDescriptor ));
+
+		m_RetroVDP->m_SpriteAttrTableIndex = m_RetroVDP->m_Register[ 5 ] * sizeof( sSpriteAttribute );
+		m_RetroVDP->m_SpriteDescTableIndex = m_RetroVDP->m_Register[ 6 ] * sizeof( sSpriteDescriptor );
+
+		m_RetroVDP->m_ColorTableMask = (( m_RetroVDP->m_Register[ 3 ] & 0x7Fu ) << 3 ) | 0x0007u;
+		m_RetroVDP->m_PatternTableMask = (( m_RetroVDP->m_Register[ 4 ] & 0x03u ) << 8 ) |
+			(( reg1 & 0x10 ) ? 0x00FF : ( m_RetroVDP->m_ColorTableMask & 0x00FF ));
+
+		memset( m_RetroVDP->m_MemoryType, 0, sizeof( m_RetroVDP->m_MemoryType ));
+		m_RetroVDP->FillTable( m_RetroVDP->m_ImageTableIndex, m_RetroVDP->m_ImageTableSize, MEM_IMAGE_TABLE );
+		m_RetroVDP->FillTable( m_RetroVDP->m_ColorTableIndex, m_RetroVDP->m_ColorTableSize, MEM_COLOR_TABLE );
+		m_RetroVDP->FillTable( m_RetroVDP->m_PatternTableIndex, m_RetroVDP->m_PatternTableSize, MEM_PATTERN_TABLE );
+		m_RetroVDP->FillTable( m_RetroVDP->m_SpriteAttrTableIndex, sizeof( sSpriteAttribute ), MEM_SPRITE_ATTR_TABLE );
+		m_RetroVDP->FillTable( m_RetroVDP->m_SpriteDescTableIndex, sizeof( sSpriteDescriptor ), MEM_SPRITE_DESC_TABLE );
+
 		m_RetroVDP->m_Address          = st->vdpAddress;
 		m_RetroVDP->m_Transfer         = st->vdpTransfer;
 		m_RetroVDP->m_Shift            = st->vdpShift;
 		m_RetroVDP->m_Status           = st->vdpStatus;
-		m_RetroVDP->m_Mode             = st->vdpMode;
 		m_RetroVDP->m_ReadAhead        = st->vdpReadAhead;
 		memcpy( m_RetroVDP->m_MaxSprite, st->vdpMaxSprite, sizeof( m_RetroVDP->m_MaxSprite ));
 		m_RetroVDP->m_SpritesDirty     = ( st->vdpSpritesDirty != 0 );
@@ -694,6 +741,9 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 		m_RetroVDP->m_CoincidenceFlag  = ( st->vdpCoincidenceFlag != 0 );
 		m_RetroVDP->m_FifthSpriteFlag  = ( st->vdpFifthSpriteFlag != 0 );
 		m_RetroVDP->m_FifthSpriteIndex = st->vdpFifthSpriteIndex;
+
+		m_RetroVDP->m_TextMode         = ( m_RetroVDP->m_Mode & VDP_M1 ) ? true : false;
+		m_RetroVDP->m_ScreenSource     = nullptr;
 		m_RetroVDP->RebuildPalette( );
 		m_RetroVDP->MarkAllDirty( );
 	}
@@ -796,7 +846,7 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 				r->CurBank = &r->Bank[ bank ];
 				for( int b = 0; b < r->NumBanks; b++ )
 				{
-					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
+					if((( r->Bank[ b ].Type == BANK_RAM ) || ( r->Bank[ b ].Type == BANK_BATTERY_BACKED ) || ( r->Bank[ b ].Flags & FLAG_BATTERY_BACKED ) || !( r->Bank[ b ].Flags & FLAG_READ_ONLY )) && ( r->Bank[ b ].Data != nullptr ) && ( cpuRamSlot < 8 ))
 					{
 						memcpy( r->Bank[ b ].Data, st->cartCpuRam[ cpuRamSlot++ ], ROM_BANK_SIZE );
 					}
@@ -814,7 +864,7 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 				r->CurBank = &r->Bank[ bank ];
 				for( int b = 0; b < r->NumBanks; b++ )
 				{
-					if(( r->Bank[ b ].Type == BANK_RAM ) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
+					if((( r->Bank[ b ].Type == BANK_RAM ) || ( r->Bank[ b ].Type == BANK_BATTERY_BACKED ) || ( r->Bank[ b ].Flags & FLAG_BATTERY_BACKED ) || !( r->Bank[ b ].Flags & FLAG_READ_ONLY )) && ( r->Bank[ b ].Data != nullptr ) && ( gromRamSlot < 2 ))
 					{
 						memcpy( r->Bank[ b ].Data, st->cartGromRam[ gromRamSlot++ ], GROM_BANK_SIZE );
 					}
