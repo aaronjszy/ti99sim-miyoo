@@ -1,3 +1,9 @@
 #!/bin/sh
-cd /mnt/SDCARD/RetroArch/
-HOME=/mnt/SDCARD/RetroArch/ /mnt/SDCARD/RetroArch/retroarch -v -L /mnt/SDCARD/RetroArch/.retroarch/cores/ti99sim_libretro.so "$1"
+echo $0 $*
+RA_DIR=/mnt/SDCARD/RetroArch
+cd "$RA_DIR"
+if [ -f "$RA_DIR/ra32.ss" ]; then
+    HOME="$RA_DIR/" "$RA_DIR/ra32.ss" -v -L "$RA_DIR/.retroarch/cores/ti99sim_libretro.so" "$1"
+else
+    HOME="$RA_DIR/" "$RA_DIR/retroarch" -v -L "$RA_DIR/.retroarch/cores/ti99sim_libretro.so" "$1"
+fi

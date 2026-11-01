@@ -418,7 +418,15 @@ namespace
 			}
 		}
 
-		// 7. D-Pad Cursor Mode
+		// 7. On-Screen Keyboard Default Position
+		var.key   = "ti99sim_osk_position";
+		var.value = nullptr;
+		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
+		{
+			g_OSK.SetTopPosition( strcmp( var.value, "top" ) == 0 );
+		}
+
+		// 8. D-Pad Cursor Mode
 		var.key   = "ti99sim_dpad_cursor";
 		var.value = nullptr;
 		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
@@ -941,7 +949,7 @@ RETRO_API void retro_get_system_info( struct retro_system_info *info )
 	memset( info, 0, sizeof( *info ));
 	info->library_name     = "TI-99Sim";
 	info->library_version  = VERSION;
-	info->valid_extensions = "ctg";
+	info->valid_extensions = "ctg|zip|7z";
 	info->need_fullpath    = true;
 	info->block_extract    = false;
 }

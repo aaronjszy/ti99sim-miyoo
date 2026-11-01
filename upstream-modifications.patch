@@ -1,6 +1,6 @@
 diff -ruN a/ti99sim/Makefile.linux b/ti99sim/Makefile.linux
 --- a/ti99sim/Makefile.linux	2021-02-02 22:55:55
-+++ b/ti99sim/Makefile.linux	2026-10-31 23:02:19
++++ b/ti99sim/Makefile.linux	2026-10-31 23:30:56
 @@ -39,6 +39,7 @@
  	src/core \
  	src/console \
@@ -11,7 +11,7 @@ diff -ruN a/ti99sim/Makefile.linux b/ti99sim/Makefile.linux
  install: ti99sim
 diff -ruN a/ti99sim/include/common.hpp b/ti99sim/include/common.hpp
 --- a/ti99sim/include/common.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/common.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/common.hpp	2026-10-31 23:30:56
 @@ -111,6 +111,10 @@
  
  	#endif
@@ -25,7 +25,7 @@ diff -ruN a/ti99sim/include/common.hpp b/ti99sim/include/common.hpp
  	// Use the environments endian definitions
 diff -ruN a/ti99sim/include/itms9901.hpp b/ti99sim/include/itms9901.hpp
 --- a/ti99sim/include/itms9901.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/itms9901.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/itms9901.hpp	2026-10-31 23:30:56
 @@ -76,6 +76,8 @@
  	virtual void SetJoystickY( int, int ) = 0;
  	virtual void SetJoystickButton( int, bool ) = 0;
@@ -37,7 +37,7 @@ diff -ruN a/ti99sim/include/itms9901.hpp b/ti99sim/include/itms9901.hpp
  	virtual ~iTMS9901( ) {}
 diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 --- a/ti99sim/include/keymap.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/include/keymap.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/keymap.hpp	2026-10-31 23:30:56
 @@ -0,0 +1,47 @@
 +//----------------------------------------------------------------------------
 +//
@@ -88,7 +88,7 @@ diff -ruN a/ti99sim/include/keymap.hpp b/ti99sim/include/keymap.hpp
 +#endif
 diff -ruN a/ti99sim/include/libretro.h b/ti99sim/include/libretro.h
 --- a/ti99sim/include/libretro.h	1969-12-31 17:00:00
-+++ b/ti99sim/include/libretro.h	2026-10-31 23:02:19
++++ b/ti99sim/include/libretro.h	2026-10-31 23:30:56
 @@ -0,0 +1,653 @@
 +/* Copyright (C) 2010-2024 The RetroArch team
 + *
@@ -745,7 +745,7 @@ diff -ruN a/ti99sim/include/libretro.h b/ti99sim/include/libretro.h
 +#endif
 diff -ruN a/ti99sim/include/support.hpp b/ti99sim/include/support.hpp
 --- a/ti99sim/include/support.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/support.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/support.hpp	2026-10-31 23:30:56
 @@ -36,6 +36,7 @@
  
  std::filesystem::path GetCommonPath( );
@@ -756,7 +756,7 @@ diff -ruN a/ti99sim/include/support.hpp b/ti99sim/include/support.hpp
  std::filesystem::path CreateHomePath( const char *path = nullptr );
 diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
 --- a/ti99sim/include/ti994a-sdl.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/ti994a-sdl.hpp	2026-10-31 23:30:56
 @@ -31,6 +31,7 @@
  
  #include <atomic>
@@ -834,7 +834,7 @@ diff -ruN a/ti99sim/include/ti994a-sdl.hpp b/ti99sim/include/ti994a-sdl.hpp
  	void StopThread( );
 diff -ruN a/ti99sim/include/tms5220.hpp b/ti99sim/include/tms5220.hpp
 --- a/ti99sim/include/tms5220.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/tms5220.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/tms5220.hpp	2026-10-31 23:30:56
 @@ -77,6 +77,8 @@
  	public virtual iTMS5220,
  	public virtual iStateObject
@@ -846,7 +846,7 @@ diff -ruN a/ti99sim/include/tms5220.hpp b/ti99sim/include/tms5220.hpp
  	struct sSpeechParams
 diff -ruN a/ti99sim/include/tms9901.hpp b/ti99sim/include/tms9901.hpp
 --- a/ti99sim/include/tms9901.hpp	2021-02-02 22:55:55
-+++ b/ti99sim/include/tms9901.hpp	2026-10-31 23:02:19
++++ b/ti99sim/include/tms9901.hpp	2026-10-31 23:30:56
 @@ -40,6 +40,8 @@
  	public virtual cDevice,
  	public virtual iTMS9901
@@ -875,7 +875,7 @@ diff -ruN a/ti99sim/include/tms9901.hpp b/ti99sim/include/tms9901.hpp
 Binary files a/ti99sim/roms/cf7a+.bin and b/ti99sim/roms/cf7a+.bin differ
 diff -ruN a/ti99sim/rules.mak b/ti99sim/rules.mak
 --- a/ti99sim/rules.mak	2021-02-02 22:55:55
-+++ b/ti99sim/rules.mak	2026-10-31 23:02:19
++++ b/ti99sim/rules.mak	2026-10-31 23:30:56
 @@ -17,18 +17,12 @@
  endif
  
@@ -910,7 +910,7 @@ diff -ruN a/ti99sim/rules.mak b/ti99sim/rules.mak
  ifeq ($(OSTYPE),CYGWIN_NT-5.1)
 diff -ruN a/ti99sim/src/core/cartridge.cpp b/ti99sim/src/core/cartridge.cpp
 --- a/ti99sim/src/core/cartridge.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/cartridge.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/cartridge.cpp	2026-10-31 23:30:56
 @@ -629,7 +629,7 @@
  		}
  	}
@@ -922,7 +922,7 @@ diff -ruN a/ti99sim/src/core/cartridge.cpp b/ti99sim/src/core/cartridge.cpp
  //----------------------------------------------------------------------------
 diff -ruN a/ti99sim/src/core/stateobject.cpp b/ti99sim/src/core/stateobject.cpp
 --- a/ti99sim/src/core/stateobject.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/stateobject.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/stateobject.cpp	2026-10-31 23:30:56
 @@ -28,9 +28,11 @@
  //----------------------------------------------------------------------------
  
@@ -957,7 +957,7 @@ diff -ruN a/ti99sim/src/core/stateobject.cpp b/ti99sim/src/core/stateobject.cpp
  {
 diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
 --- a/ti99sim/src/core/support.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/support.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/support.cpp	2026-10-31 23:30:56
 @@ -51,12 +51,26 @@
  
  constexpr char HOME_DIR[ ] = ".ti99sim";
@@ -1195,7 +1195,7 @@ diff -ruN a/ti99sim/src/core/support.cpp b/ti99sim/src/core/support.cpp
  
 diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
 --- a/ti99sim/src/core/ti994a-gk.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/ti994a-gk.cpp	2026-10-31 23:30:56
 @@ -134,7 +134,7 @@
  
  	auto save = cTI994A::SaveState( );
@@ -1227,7 +1227,7 @@ diff -ruN a/ti99sim/src/core/ti994a-gk.cpp b/ti99sim/src/core/ti994a-gk.cpp
  	}
 diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
 --- a/ti99sim/src/core/ti994a.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/ti994a.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/ti994a.cpp	2026-10-31 23:30:56
 @@ -741,27 +741,42 @@
  
  	if( save.hasValue( "Console" ))
@@ -1296,7 +1296,7 @@ diff -ruN a/ti99sim/src/core/ti994a.cpp b/ti99sim/src/core/ti994a.cpp
  }
 diff -ruN a/ti99sim/src/core/tms9901.cpp b/ti99sim/src/core/tms9901.cpp
 --- a/ti99sim/src/core/tms9901.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/tms9901.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/tms9901.cpp	2026-10-31 23:30:56
 @@ -51,6 +51,7 @@
  	m_LastDelta( 0 ),
  	m_DecrementClock( 0 ),
@@ -1356,7 +1356,7 @@ diff -ruN a/ti99sim/src/core/tms9901.cpp b/ti99sim/src/core/tms9901.cpp
  }
 diff -ruN a/ti99sim/src/core/tms9919.cpp b/ti99sim/src/core/tms9919.cpp
 --- a/ti99sim/src/core/tms9919.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/core/tms9919.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/core/tms9919.cpp	2026-10-31 23:30:56
 @@ -195,7 +195,15 @@
  	state.load( "NoiseColor", m_NoiseColor, SaveFormat::HEXADECIMAL );
  	state.load( "NoiseType", m_NoiseType, SaveFormat::HEXADECIMAL );
@@ -1376,7 +1376,7 @@ diff -ruN a/ti99sim/src/core/tms9919.cpp b/ti99sim/src/core/tms9919.cpp
  std::optional<sStateSection> cTMS9919::SaveState( )
 diff -ruN a/ti99sim/src/libretro/Makefile b/ti99sim/src/libretro/Makefile
 --- a/ti99sim/src/libretro/Makefile	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/Makefile	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/Makefile	2026-10-31 23:30:56
 @@ -0,0 +1,50 @@
 +# TI-99/sim src/libretro Makefile
 +
@@ -1430,7 +1430,7 @@ diff -ruN a/ti99sim/src/libretro/Makefile b/ti99sim/src/libretro/Makefile
 +-include $(OBJECTS:.o=.dep)
 diff -ruN a/ti99sim/src/libretro/exports.txt b/ti99sim/src/libretro/exports.txt
 --- a/ti99sim/src/libretro/exports.txt	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/exports.txt	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/exports.txt	2026-10-31 23:30:56
 @@ -0,0 +1,25 @@
 +_retro_init
 +_retro_deinit
@@ -1459,8 +1459,8 @@ diff -ruN a/ti99sim/src/libretro/exports.txt b/ti99sim/src/libretro/exports.txt
 +_retro_get_memory_size
 diff -ruN a/ti99sim/src/libretro/libretro-core-options.hpp b/ti99sim/src/libretro/libretro-core-options.hpp
 --- a/ti99sim/src/libretro/libretro-core-options.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/libretro-core-options.hpp	2026-10-31 23:02:19
-@@ -0,0 +1,345 @@
++++ b/ti99sim/src/libretro/libretro-core-options.hpp	2026-10-31 23:30:56
+@@ -0,0 +1,387 @@
 +//----------------------------------------------------------------------------
 +//
 +// File:        libretro-core-options.hpp
@@ -1477,6 +1477,7 @@ diff -ruN a/ti99sim/src/libretro/libretro-core-options.hpp b/ti99sim/src/libretr
 +#define LIBRETRO_CORE_OPTIONS_HPP_
 +
 +#include <cstring>
++#include <string>
 +#include "libretro.h"
 +
 +#define TI99SIM_BUTTON_OPTION_VALUES \
@@ -1631,6 +1632,20 @@ diff -ruN a/ti99sim/src/libretro/libretro-core-options.hpp b/ti99sim/src/libretr
 +			{ nullptr, nullptr }
 +		},
 +		"disabled"
++	},
++	{
++		"ti99sim_osk_position",
++		"Video > On-Screen Keyboard Position",
++		"OSK Position",
++		"Default docking position for the built-in on-screen keyboard.",
++		nullptr,
++		"video",
++		{
++			{ "bottom", "Bottom" },
++			{ "top",    "Top" },
++			{ nullptr, nullptr }
++		},
++		"bottom"
 +	},
 +	{
 +		"ti99sim_dpad_cursor",
@@ -1801,15 +1816,42 @@ diff -ruN a/ti99sim/src/libretro/libretro-core-options.hpp b/ti99sim/src/libretr
 +			v1_defs[ i ].default_value = option_defs_us[ i ].default_value;
 +			memcpy( v1_defs[ i ].values, option_defs_us[ i ].values, sizeof( v1_defs[ i ].values ));
 +		}
-+		environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &v1_defs );
++		if( environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &v1_defs ))
++		{
++			return;
++		}
 +	}
++
++	// Fallback for v0 frontends (RETRO_ENVIRONMENT_SET_VARIABLES)
++	static std::string var_strings[ 32 ];
++	static struct retro_variable vars[ 33 ];
++	memset( vars, 0, sizeof( vars ));
++	for( size_t i = 0; i < num_opts && i < 32; i++ )
++	{
++		std::string str = option_defs_us[ i ].desc ? option_defs_us[ i ].desc : "";
++		str += "; ";
++		bool first = true;
++		for( size_t v = 0; option_defs_us[ i ].values[ v ].value != nullptr; v++ )
++		{
++			if( !first )
++			{
++				str += "|";
++			}
++			str += option_defs_us[ i ].values[ v ].value;
++			first = false;
++		}
++		var_strings[ i ] = std::move( str );
++		vars[ i ].key   = option_defs_us[ i ].key;
++		vars[ i ].value = var_strings[ i ].c_str( );
++	}
++	environ_cb( RETRO_ENVIRONMENT_SET_VARIABLES, vars );
 +}
 +
 +#endif
 diff -ruN a/ti99sim/src/libretro/libretro-core.cpp b/ti99sim/src/libretro/libretro-core.cpp
 --- a/ti99sim/src/libretro/libretro-core.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/libretro-core.cpp	2026-10-31 23:02:19
-@@ -0,0 +1,1349 @@
++++ b/ti99sim/src/libretro/libretro-core.cpp	2026-10-31 23:30:56
+@@ -0,0 +1,1357 @@
 +//----------------------------------------------------------------------------
 +//
 +// File:        libretro-core.cpp
@@ -2230,7 +2272,15 @@ diff -ruN a/ti99sim/src/libretro/libretro-core.cpp b/ti99sim/src/libretro/libret
 +			}
 +		}
 +
-+		// 7. D-Pad Cursor Mode
++		// 7. On-Screen Keyboard Default Position
++		var.key   = "ti99sim_osk_position";
++		var.value = nullptr;
++		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
++		{
++			g_OSK.SetTopPosition( strcmp( var.value, "top" ) == 0 );
++		}
++
++		// 8. D-Pad Cursor Mode
 +		var.key   = "ti99sim_dpad_cursor";
 +		var.value = nullptr;
 +		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
@@ -2753,7 +2803,7 @@ diff -ruN a/ti99sim/src/libretro/libretro-core.cpp b/ti99sim/src/libretro/libret
 +	memset( info, 0, sizeof( *info ));
 +	info->library_name     = "TI-99Sim";
 +	info->library_version  = VERSION;
-+	info->valid_extensions = "ctg";
++	info->valid_extensions = "ctg|zip|7z";
 +	info->need_fullpath    = true;
 +	info->block_extract    = false;
 +}
@@ -3161,7 +3211,7 @@ diff -ruN a/ti99sim/src/libretro/libretro-core.cpp b/ti99sim/src/libretro/libret
 +} // extern "C"
 diff -ruN a/ti99sim/src/libretro/link.T b/ti99sim/src/libretro/link.T
 --- a/ti99sim/src/libretro/link.T	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/link.T	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/link.T	2026-10-31 23:30:56
 @@ -0,0 +1,30 @@
 +{
 +   global:
@@ -3195,8 +3245,8 @@ diff -ruN a/ti99sim/src/libretro/link.T b/ti99sim/src/libretro/link.T
 +};
 diff -ruN a/ti99sim/src/libretro/osk-retro.cpp b/ti99sim/src/libretro/osk-retro.cpp
 --- a/ti99sim/src/libretro/osk-retro.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/osk-retro.cpp	2026-10-31 23:02:19
-@@ -0,0 +1,751 @@
++++ b/ti99sim/src/libretro/osk-retro.cpp	2026-10-31 23:30:56
+@@ -0,0 +1,745 @@
 +//----------------------------------------------------------------------------
 +//
 +// File:        osk-retro.cpp
@@ -3671,23 +3721,6 @@ diff -ruN a/ti99sim/src/libretro/osk-retro.cpp b/ti99sim/src/libretro/osk-retro.
 +		return;
 +	}
 +
-+	// X toggles sticky FCTN modifier
-+	if( input.x && !m_PrevInput.x )
-+	{
-+		m_StickyFctn = !m_StickyFctn;
-+		if( pic != nullptr )
-+		{
-+			if( m_StickyFctn )
-+			{
-+				pic->VKeysDown( OSK_MOD_FCTN, VK_FCTN );
-+			}
-+			else
-+			{
-+				pic->VKeyUp( OSK_MOD_FCTN );
-+			}
-+		}
-+	}
-+
 +	// D-pad navigation with auto-repeat
 +	bool anyDir     = input.up || input.down || input.left || input.right;
 +	bool prevAnyDir = m_PrevInput.up || m_PrevInput.down || m_PrevInput.left || m_PrevInput.right;
@@ -3738,11 +3771,22 @@ diff -ruN a/ti99sim/src/libretro/osk-retro.cpp b/ti99sim/src/libretro/osk-retro.
 +		}
 +	}
 +
-+	// A presses selected key; Y presses Space; Start presses Enter
-+	bool anyKeyHeld = input.a || input.y || input.start;
++	// A presses selected key; X presses Backspace (FCTN+S); Y presses Space; Start presses Enter
++	bool anyKeyHeld = input.a || input.x || input.y || input.start;
 +	if( input.a && !m_PrevInput.a )
 +	{
 +		PressSelectedKey( pic );
++	}
++	else if( input.x && !m_PrevInput.x )
++	{
++		ReleaseActiveKey( pic );
++		m_ActiveKeySym = OSK_KEYSYM_SLOT;
++		m_ActiveVKey1  = VK_FCTN;
++		m_ActiveVKey2  = VK_S;
++		if( pic != nullptr )
++		{
++			pic->VKeysDown( OSK_KEYSYM_SLOT, VK_FCTN, VK_S );
++		}
 +	}
 +	else if( input.y && !m_PrevInput.y )
 +	{
@@ -3950,8 +3994,8 @@ diff -ruN a/ti99sim/src/libretro/osk-retro.cpp b/ti99sim/src/libretro/osk-retro.
 +}
 diff -ruN a/ti99sim/src/libretro/osk-retro.hpp b/ti99sim/src/libretro/osk-retro.hpp
 --- a/ti99sim/src/libretro/osk-retro.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/osk-retro.hpp	2026-10-31 23:02:19
-@@ -0,0 +1,81 @@
++++ b/ti99sim/src/libretro/osk-retro.hpp	2026-10-31 23:30:56
+@@ -0,0 +1,84 @@
 +//----------------------------------------------------------------------------
 +//
 +// File:        osk-retro.hpp
@@ -4023,6 +4067,9 @@ diff -ruN a/ti99sim/src/libretro/osk-retro.hpp b/ti99sim/src/libretro/osk-retro.
 +	void SetActive( bool active, iTMS9901 *pic );
 +	void Toggle( iTMS9901 *pic );
 +
++	bool IsTopPosition( ) const { return m_TopPosition; }
++	void SetTopPosition( bool top ) { m_TopPosition = top; }
++
 +	bool IsAlphaLock( ) const { return m_AlphaLock; }
 +	void SetAlphaLock( bool enabled, iTMS9901 *pic );
 +
@@ -4035,7 +4082,7 @@ diff -ruN a/ti99sim/src/libretro/osk-retro.hpp b/ti99sim/src/libretro/osk-retro.
 +#endif
 diff -ruN a/ti99sim/src/libretro/ti994a-retro.cpp b/ti99sim/src/libretro/ti994a-retro.cpp
 --- a/ti99sim/src/libretro/ti994a-retro.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/ti994a-retro.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/ti994a-retro.cpp	2026-10-31 23:30:56
 @@ -0,0 +1,885 @@
 +//----------------------------------------------------------------------------
 +//
@@ -4924,7 +4971,7 @@ diff -ruN a/ti99sim/src/libretro/ti994a-retro.cpp b/ti99sim/src/libretro/ti994a-
 +}
 diff -ruN a/ti99sim/src/libretro/ti994a-retro.hpp b/ti99sim/src/libretro/ti994a-retro.hpp
 --- a/ti99sim/src/libretro/ti994a-retro.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/ti994a-retro.hpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/ti994a-retro.hpp	2026-10-31 23:30:56
 @@ -0,0 +1,85 @@
 +//----------------------------------------------------------------------------
 +//
@@ -5013,7 +5060,7 @@ diff -ruN a/ti99sim/src/libretro/ti994a-retro.hpp b/ti99sim/src/libretro/ti994a-
 +#endif
 diff -ruN a/ti99sim/src/libretro/tms9918a-retro.cpp b/ti99sim/src/libretro/tms9918a-retro.cpp
 --- a/ti99sim/src/libretro/tms9918a-retro.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/tms9918a-retro.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/tms9918a-retro.cpp	2026-10-31 23:30:56
 @@ -0,0 +1,1065 @@
 +//----------------------------------------------------------------------------
 +//
@@ -6082,7 +6129,7 @@ diff -ruN a/ti99sim/src/libretro/tms9918a-retro.cpp b/ti99sim/src/libretro/tms99
 +}
 diff -ruN a/ti99sim/src/libretro/tms9918a-retro.hpp b/ti99sim/src/libretro/tms9918a-retro.hpp
 --- a/ti99sim/src/libretro/tms9918a-retro.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/tms9918a-retro.hpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/tms9918a-retro.hpp	2026-10-31 23:30:56
 @@ -0,0 +1,138 @@
 +//----------------------------------------------------------------------------
 +//
@@ -6224,7 +6271,7 @@ diff -ruN a/ti99sim/src/libretro/tms9918a-retro.hpp b/ti99sim/src/libretro/tms99
 +#endif
 diff -ruN a/ti99sim/src/libretro/tms9919-retro.cpp b/ti99sim/src/libretro/tms9919-retro.cpp
 --- a/ti99sim/src/libretro/tms9919-retro.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/tms9919-retro.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/tms9919-retro.cpp	2026-10-31 23:30:56
 @@ -0,0 +1,255 @@
 +//----------------------------------------------------------------------------
 +//
@@ -6483,7 +6530,7 @@ diff -ruN a/ti99sim/src/libretro/tms9919-retro.cpp b/ti99sim/src/libretro/tms991
 +}
 diff -ruN a/ti99sim/src/libretro/tms9919-retro.hpp b/ti99sim/src/libretro/tms9919-retro.hpp
 --- a/ti99sim/src/libretro/tms9919-retro.hpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/libretro/tms9919-retro.hpp	2026-10-31 23:02:19
++++ b/ti99sim/src/libretro/tms9919-retro.hpp	2026-10-31 23:30:56
 @@ -0,0 +1,85 @@
 +//----------------------------------------------------------------------------
 +//
@@ -6572,7 +6619,7 @@ diff -ruN a/ti99sim/src/libretro/tms9919-retro.hpp b/ti99sim/src/libretro/tms991
 +#endif
 diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
 --- a/ti99sim/src/sdl/Makefile	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/Makefile	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/Makefile	2026-10-31 23:30:56
 @@ -9,7 +9,9 @@
  
  XLIBS	+= -lpthread
@@ -6593,7 +6640,7 @@ diff -ruN a/ti99sim/src/sdl/Makefile b/ti99sim/src/sdl/Makefile
  FILES	+= ti994a-sdl.cpp
 diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
 --- a/ti99sim/src/sdl/bitmap.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/bitmap.cpp	2026-10-31 23:30:56
 @@ -28,6 +28,7 @@
  
  #include <algorithm>
@@ -6640,7 +6687,7 @@ diff -ruN a/ti99sim/src/sdl/bitmap.cpp b/ti99sim/src/sdl/bitmap.cpp
  	{
 diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 --- a/ti99sim/src/sdl/keymap.cpp	1969-12-31 17:00:00
-+++ b/ti99sim/src/sdl/keymap.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/keymap.cpp	2026-10-31 23:30:56
 @@ -0,0 +1,222 @@
 +//----------------------------------------------------------------------------
 +//
@@ -6866,7 +6913,7 @@ diff -ruN a/ti99sim/src/sdl/keymap.cpp b/ti99sim/src/sdl/keymap.cpp
 +}
 diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
 --- a/ti99sim/src/sdl/main.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/main.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/main.cpp	2026-10-31 23:30:56
 @@ -44,6 +44,8 @@
  #include "support.hpp"
  #include "option.hpp"
@@ -6878,7 +6925,7 @@ diff -ruN a/ti99sim/src/sdl/main.cpp b/ti99sim/src/sdl/main.cpp
  static sRGBQUAD ColorTable[ 3 ][ 17 ] =
 diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
 --- a/ti99sim/src/sdl/ti994a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/ti994a-sdl.cpp	2026-10-31 23:30:56
 @@ -61,6 +61,10 @@
  {
  	FUNCTION_ENTRY( this, "cSdlTI994A ctor", true );
@@ -7460,7 +7507,7 @@ diff -ruN a/ti99sim/src/sdl/ti994a-sdl.cpp b/ti99sim/src/sdl/ti994a-sdl.cpp
  
 diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
 --- a/ti99sim/src/sdl/tms9918a-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/tms9918a-sdl.cpp	2026-10-31 23:30:56
 @@ -37,6 +37,15 @@
  
  DBG_REGISTER( __FILE__ );
@@ -7562,7 +7609,7 @@ diff -ruN a/ti99sim/src/sdl/tms9918a-sdl.cpp b/ti99sim/src/sdl/tms9918a-sdl.cpp
  	}
 diff -ruN a/ti99sim/src/sdl/tms9919-sdl.cpp b/ti99sim/src/sdl/tms9919-sdl.cpp
 --- a/ti99sim/src/sdl/tms9919-sdl.cpp	2021-02-02 22:55:55
-+++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-31 23:02:19
++++ b/ti99sim/src/sdl/tms9919-sdl.cpp	2026-10-31 23:30:56
 @@ -89,6 +89,17 @@
  	int ratio   = 44100 / sampleFreq;
  	int samples = DEFAULT_SAMPLES / ratio;

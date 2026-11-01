@@ -14,6 +14,7 @@
 #define LIBRETRO_CORE_OPTIONS_HPP_
 
 #include <cstring>
+#include <string>
 #include "libretro.h"
 
 #define TI99SIM_BUTTON_OPTION_VALUES \
@@ -168,6 +169,20 @@ static struct retro_core_option_v2_definition option_defs_us[] =
 			{ nullptr, nullptr }
 		},
 		"disabled"
+	},
+	{
+		"ti99sim_osk_position",
+		"Video > On-Screen Keyboard Position",
+		"OSK Position",
+		"Default docking position for the built-in on-screen keyboard.",
+		nullptr,
+		"video",
+		{
+			{ "bottom", "Bottom" },
+			{ "top",    "Top" },
+			{ nullptr, nullptr }
+		},
+		"bottom"
 	},
 	{
 		"ti99sim_dpad_cursor",
@@ -338,8 +353,35 @@ inline void libretro_set_core_options( retro_environment_t environ_cb )
 			v1_defs[ i ].default_value = option_defs_us[ i ].default_value;
 			memcpy( v1_defs[ i ].values, option_defs_us[ i ].values, sizeof( v1_defs[ i ].values ));
 		}
-		environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &v1_defs );
+		if( environ_cb( RETRO_ENVIRONMENT_SET_CORE_OPTIONS, &v1_defs ))
+		{
+			return;
+		}
 	}
+
+	// Fallback for v0 frontends (RETRO_ENVIRONMENT_SET_VARIABLES)
+	static std::string var_strings[ 32 ];
+	static struct retro_variable vars[ 33 ];
+	memset( vars, 0, sizeof( vars ));
+	for( size_t i = 0; i < num_opts && i < 32; i++ )
+	{
+		std::string str = option_defs_us[ i ].desc ? option_defs_us[ i ].desc : "";
+		str += "; ";
+		bool first = true;
+		for( size_t v = 0; option_defs_us[ i ].values[ v ].value != nullptr; v++ )
+		{
+			if( !first )
+			{
+				str += "|";
+			}
+			str += option_defs_us[ i ].values[ v ].value;
+			first = false;
+		}
+		var_strings[ i ] = std::move( str );
+		vars[ i ].key   = option_defs_us[ i ].key;
+		vars[ i ].value = var_strings[ i ].c_str( );
+	}
+	environ_cb( RETRO_ENVIRONMENT_SET_VARIABLES, vars );
 }
 
 #endif

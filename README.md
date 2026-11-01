@@ -85,14 +85,14 @@ make deploy IP=192.168.1.100
 | Miyoo Button | Default TI-99/4A Action | Typical Use |
 | :--- | :--- | :--- |
 | **D-Pad** | **TI Joystick 1** (or `E`/`S`/`D`/`X` in Cursor Mode) | Directional movement (Last-Input-Wins SOCD) |
-| **B** | **Joystick 1 Fire** | Primary action / Shoot |
-| **A** | **`Space`** | Secondary action / Smart Bomb |
-| **Y** | **`1`** | Select Option 1 (1 Player / TI BASIC) |
-| **X** | **`2`** | Select Option 2 (2 Players / Cartridge Module) |
-| **L1** | **`3`** | Select Option 3 / Parsec Lift |
+| **A** | **Joystick 1 Fire** | Primary action / Shoot |
+| **B** | **`1`** | Select Option 1 (1 Player / TI BASIC) / Menu Option |
+| **Y** | **`2`** | Select Option 2 (2 Players / Cartridge Module) |
+| **X** | **`3`** | Select Option 3 / Parsec Lift |
+| **L1** | **`FCTN + 8` (`REDO`)** | Redo |
 | **R1** | **`FCTN + 9` (`BACK`)** | Return to previous screen |
-| **L2** | **`FCTN + 4` (`CLEAR`)** | Clear / Break |
-| **R2** | **`FCTN + 6` (`PROCEED`)** | Proceed |
+| **L2** | **`Y`** | "Yes" to prompts |
+| **R2** | **`N`** | "No" to prompts |
 | **Start** | **`Enter`** | Bypass title screen / Confirm |
 | **Select** | **Toggle On-Screen Keyboard (OSK)** | Show/hide 48-key virtual TI-99/4A keyboard |
 | **Menu** | **Onion OS Game Switcher / RetroArch** | Hold `Menu` + `Select` for RetroArch Quick Menu |
@@ -101,11 +101,12 @@ make deploy IP=192.168.1.100
 
 Press **`Select`** to open the translucent 5-row TI-99/4A virtual keyboard overlay:
 
-- **D-Pad**: Move highlight cursor across keys (wraps around edges).
-- **B**: Hold/press the highlighted key (or toggle modifier keys).
-- **A**: Tap the highlighted key (3-frame pulse) and automatically close the OSK.
-- **Y**: Toggle sticky modifier (`SHF`, `FCT`, `CTL`, `ALP`) on the highlighted modifier key.
+- **D-Pad**: Move highlight cursor across keys (wraps around edges with auto-repeat).
+- **A**: Press the highlighted key (or toggle modifier if on `SHF`, `FCT`, `CTL`, `ALP`).
+- **B**: Close OSK.
 - **X**: Quick Backspace (`FCTN + S`).
+- **Y**: Quick Space (`SPACE`).
+- **Start**: Quick Enter (`ENTER`).
 - **L1 / R1**: Toggle OSK dock position between **Bottom** and **Top** of the screen.
 - **Select**: Close OSK.
 

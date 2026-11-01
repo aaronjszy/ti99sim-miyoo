@@ -69,6 +69,9 @@ public:
 	void SetActive( bool active, iTMS9901 *pic );
 	void Toggle( iTMS9901 *pic );
 
+	bool IsTopPosition( ) const { return m_TopPosition; }
+	void SetTopPosition( bool top ) { m_TopPosition = top; }
+
 	bool IsAlphaLock( ) const { return m_AlphaLock; }
 	void SetAlphaLock( bool enabled, iTMS9901 *pic );
 

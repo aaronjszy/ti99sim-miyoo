@@ -472,23 +472,6 @@ void cRetroOSK::Update( const sPadInput &input, iTMS9901 *pic )
 		return;
 	}
 
-	// X toggles sticky FCTN modifier
-	if( input.x && !m_PrevInput.x )
-	{
-		m_StickyFctn = !m_StickyFctn;
-		if( pic != nullptr )
-		{
-			if( m_StickyFctn )
-			{
-				pic->VKeysDown( OSK_MOD_FCTN, VK_FCTN );
-			}
-			else
-			{
-				pic->VKeyUp( OSK_MOD_FCTN );
-			}
-		}
-	}
-
 	// D-pad navigation with auto-repeat
 	bool anyDir     = input.up || input.down || input.left || input.right;
 	bool prevAnyDir = m_PrevInput.up || m_PrevInput.down || m_PrevInput.left || m_PrevInput.right;
@@ -539,11 +522,22 @@ void cRetroOSK::Update( const sPadInput &input, iTMS9901 *pic )
 		}
 	}
 
-	// A presses selected key; Y presses Space; Start presses Enter
-	bool anyKeyHeld = input.a || input.y || input.start;
+	// A presses selected key; X presses Backspace (FCTN+S); Y presses Space; Start presses Enter
+	bool anyKeyHeld = input.a || input.x || input.y || input.start;
 	if( input.a && !m_PrevInput.a )
 	{
 		PressSelectedKey( pic );
+	}
+	else if( input.x && !m_PrevInput.x )
+	{
+		ReleaseActiveKey( pic );
+		m_ActiveKeySym = OSK_KEYSYM_SLOT;
+		m_ActiveVKey1  = VK_FCTN;
+		m_ActiveVKey2  = VK_S;
+		if( pic != nullptr )
+		{
+			pic->VKeysDown( OSK_KEYSYM_SLOT, VK_FCTN, VK_S );
+		}
 	}
 	else if( input.y && !m_PrevInput.y )
 	{
