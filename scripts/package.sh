@@ -18,14 +18,6 @@ cp -R "$ROOT/miyoo/SDCARD/." "$OUT/"
 cp "$ROOT/build/ti99sim_libretro.so" "$CORES/ti99sim_libretro.so"
 chmod +x "$APP/launch.sh"
 
-if [ -f "$ROOT/build/ti99sim-sdl" ]; then
-    cp "$ROOT/build/ti99sim-sdl" "$APP/"
-    chmod +x "$APP/ti99sim-sdl"
-    if [ -d "$ROOT/deps/lib" ]; then
-        cp "$ROOT"/deps/lib/* "$APP/"
-    fi
-fi
-
 # Folders the core and Onion's Games menu look in; the TI ROMs themselves are not included (see README.md)
 cat > "$BIOS/README.txt" <<'EOF'
 Put the TI-99/4A console ROM cartridge here as TI-994A.ctg (see the project README, "Required System ROMs").

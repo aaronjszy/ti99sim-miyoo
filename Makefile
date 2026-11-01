@@ -32,31 +32,23 @@ endif
 # If MIYOO_HOST contains an @ (e.g. onion@192.168.1.50), use it directly, otherwise prepend MIYOO_USER@
 MIYOO_SSH_TARGET := $(if $(findstring @,$(MIYOO_HOST)),$(MIYOO_HOST),$(MIYOO_USER)@$(MIYOO_HOST))
 
-.PHONY: help deps build build-sdl build-host package zip install deploy scp patch clean distclean
+.PHONY: help build build-host package zip install deploy scp patch clean distclean
 
 help:
 	@echo "make build                     cross-compile Libretro core in Docker -> build/ti99sim_libretro.so"
 	@echo "make build-host                compile Libretro core natively on host -> ti99sim/bin/ti99sim_libretro.*"
-	@echo "make build-sdl                 cross-compile both Libretro core and legacy standalone build/ti99sim-sdl"
-	@echo "make deps                      download the pinned SDL2 port headers and libraries (deps/)"
 	@echo "make package                   assemble dist/SDCARD, a tree mirroring the SD card"
 	@echo "make zip                       package, then zip it -> dist/ti99sim-miyoo.zip"
 	@echo "make install SDCARD=/path      package, then copy onto a mounted Onion SD card"
 	@echo "make deploy [IP=...]           package, zip, scp to Miyoo and unzip in /mnt/SDCARD"
 	@echo "                               (alias: 'make scp'; saves to .miyoo-ip to avoid typing IP each time)"
 	@echo "make patch                     regenerate upstream-modifications.patch against commit e360854"
-	@echo "make clean | distclean         remove build output | also the downloaded deps"
+	@echo "make clean | distclean         remove build and dist artifacts"
 	@echo
 	@echo "The TI console ROM is not included; see README.md ('Required System ROMs')."
 
-deps:
-	@scripts/fetch-deps.sh
-
 build:
 	$(DOCKER) run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)":/work -w /work $(IMAGE) bash scripts/build-in-container.sh
-
-build-sdl: deps
-	$(DOCKER) run --rm -e BUILD_SDL=1 -u "$$(id -u):$$(id -g)" -v "$(CURDIR)":/work -w /work $(IMAGE) bash scripts/build-in-container.sh
 
 build-host:
 	CFLAGS="-DTI_NO_OPENSSL" $(MAKE) -C ti99sim/src/core
@@ -88,4 +80,4 @@ clean:
 	rm -rf build dist ti99sim/bin ti99sim/src/*/Release
 
 distclean: clean
-	rm -rf deps/steward-sdl2 deps/lib
+

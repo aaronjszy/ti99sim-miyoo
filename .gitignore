@@ -11,10 +11,6 @@
 /build/
 /dist/
 
-# Dependencies fetched by `make deps`; the pinned checksums in deps/SHA256SUMS are tracked
-/deps/*
-!/deps/SHA256SUMS
-
 # The emulator builds in-tree; keep its output out of git
 /ti99sim/bin/
 /ti99sim/src/*/Release/

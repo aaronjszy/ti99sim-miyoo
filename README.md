@@ -152,9 +152,6 @@ make zip
 
 # Optional: Build native host core (ti99sim/bin/ti99sim_libretro.dylib or .so)
 make build-host
-
-# Optional: Also cross-compile the legacy standalone SDL2 binary (build/ti99sim-sdl)
-make build-sdl
 ```
 
 ---
