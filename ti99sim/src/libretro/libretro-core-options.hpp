@@ -234,6 +234,20 @@ static struct retro_core_option_v2_definition option_defs_us[] =
 		"100"
 	},
 	{
+		"ti99sim_dpad_gate",
+		"Input > D-Pad Directional Gate",
+		"D-Pad Gate",
+		"Select 4-way mode (inter-axis Last-Input-Wins, ideal for Parsec, Munch Man, and maze games) or full 8-way diagonal mode.",
+		nullptr,
+		"input",
+		{
+			{ "4way", "4-Way (Last-Input Priority)" },
+			{ "8way", "8-Way (Diagonals Allowed)" },
+			{ nullptr, nullptr }
+		},
+		"4way"
+	},
+	{
 		"ti99sim_dpad_cursor",
 		"Input > D-Pad Also Presses Cursor Keys",
 		"D-Pad Also Presses Cursor Keys",

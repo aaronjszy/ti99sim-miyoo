@@ -56,7 +56,7 @@ clean:
 	@-rm -Rf *~ $(CFG) $(TARGETS)
 
 $(CFG)/ti-core.a: $(OBJS)
-	$(AR) rc $@ $?
+	$(AR) rc $@ $^
 	$(RANLIB) $@
 
 -include $(FILES:%.cpp=$(CFG)/%.dep)

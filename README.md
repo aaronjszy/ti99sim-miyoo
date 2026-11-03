@@ -129,6 +129,7 @@ Open the RetroArch Quick Menu (**`Menu + Select` → Core Options**) to customiz
   - **PSG Sound Effects Volume**: `0%` to `100%` (default `100%`)
   - **TMS5220 Speech Volume**: `0%` to `200%` (default `100%`, boost voice relative to PSG)
 - **Controls & Keymap**
+  - **D-Pad Directional Gate**: `4-Way (Last-Input Priority)` (default, prevents diagonal deadzones/freezing in *Parsec*, *Munch Man*, etc.) / `8-Way (Diagonals Allowed)`
   - **D-Pad Mode**: `TI Joystick 1` / `Keyboard Cursor (E/S/D/X)`
   - **Button A / B / Y / X / L1 / R1 / L2 / R2 / Start / Select Mapping**: Bind any physical button to any TI-99/4A key, number, or `FCTN` shortcut (`JOY_FIRE`, `SPACE`, `ENTER`, `OSK`, `0`–`9`, `A`–`Z`, `FCTN+1..9`, etc.).
   - **Per-Game Controls**: Use RetroArch's standard **Quick Menu → Core Options → Manage Core Options → Save Game Options** to save a `<Game>.opt` profile for any title. A bundled profile for *Parsec* (`B=1`, `Y=2`, `X=3` Lift, `L=Y`, `R=N` Play Again) is included out of the box in `.retroarch/config/TI-99Sim/Parsec.opt`.

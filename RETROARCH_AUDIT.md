@@ -133,6 +133,7 @@ However, an audit of the RetroArch and Onion OS integration identified **three c
 | :---: | :--- | :--- | :---: |
 | **P0** | **Fix Onion OS `launch.sh`** | [`miyoo/SDCARD/Emu/TI99/launch.sh`](miyoo/SDCARD/Emu/TI99/launch.sh) | **Done** |
 | **P0** | **Reconcile OSK Controls & Documentation** | [`README.md`](README.md), [`ti99sim_libretro.info`](miyoo/SDCARD/RetroArch/.retroarch/cores/ti99sim_libretro.info) | **Done** |
+| **P0** | **4-Way D-Pad Directional Gate (Inter-Axis Last-Input)** | [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp), [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp) | **Done** |
 | **P0** | **Add Quick Backspace to OSK (`X` -> `FCTN+S`)** | [`ti99sim/src/libretro/osk-retro.cpp`](ti99sim/src/libretro/osk-retro.cpp) | **Done** |
 | **P1** | **Enable Archive Support (`.zip`, `.7z`)** | [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp), [`.info`](miyoo/SDCARD/RetroArch/.retroarch/cores/ti99sim_libretro.info), [`config.json`](miyoo/SDCARD/Emu/TI99/config.json) | **Done** |
 | **P1** | **Add OSK Initial Position Core Option** | [`libretro-core-options.hpp`](ti99sim/src/libretro/libretro-core-options.hpp), [`libretro-core.cpp`](ti99sim/src/libretro/libretro-core.cpp) | **Done** |

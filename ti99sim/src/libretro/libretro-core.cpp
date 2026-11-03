@@ -155,17 +155,32 @@ namespace
 		ARROWS
 	};
 
-	eDpadCursorMode g_DpadCursorMode = eDpadCursorMode::DISABLED;
+	enum class eDpadGateMode
+	{
+		GATE_4WAY,
+		GATE_8WAY
+	};
 
-	// Input state tracking for edge detection and Last-Input-Wins SOCD
-	bool g_PrevSlotPressed[ SLOT_COUNT ] = { };
-	bool g_PrevDpadCursor[ 4 ]           = { };
-	bool g_PrevLeft[ 2 ]                 = { };
-	bool g_PrevRight[ 2 ]                = { };
-	bool g_PrevUp[ 2 ]                   = { };
-	bool g_PrevDown[ 2 ]                 = { };
-	int  g_LastHorizDir[ 2 ]             = { };
-	int  g_LastVertDir[ 2 ]              = { };
+	enum class eLastAxis
+	{
+		NONE = 0,
+		HORIZONTAL,
+		VERTICAL
+	};
+
+	eDpadCursorMode g_DpadCursorMode = eDpadCursorMode::DISABLED;
+	eDpadGateMode   g_DpadGateMode   = eDpadGateMode::GATE_4WAY;
+
+	// Input state tracking for edge detection, inter-axis gate, and Last-Input-Wins SOCD
+	bool      g_PrevSlotPressed[ SLOT_COUNT ] = { };
+	bool      g_PrevDpadCursor[ 4 ]           = { };
+	bool      g_PrevLeft[ 2 ]                 = { };
+	bool      g_PrevRight[ 2 ]                = { };
+	bool      g_PrevUp[ 2 ]                   = { };
+	bool      g_PrevDown[ 2 ]                 = { };
+	int       g_LastHorizDir[ 2 ]             = { };
+	int       g_LastVertDir[ 2 ]              = { };
+	eLastAxis g_LastAxis[ 2 ]                 = { };
 
 	void FallbackLog( enum retro_log_level level, const char *fmt, ... )
 	{
@@ -450,7 +465,22 @@ namespace
 			}
 		}
 
-		// 10. D-Pad Cursor Mode
+		// 10. D-Pad Directional Gate
+		var.key   = "ti99sim_dpad_gate";
+		var.value = nullptr;
+		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
+		{
+			if( strcmp( var.value, "8way" ) == 0 )
+			{
+				g_DpadGateMode = eDpadGateMode::GATE_8WAY;
+			}
+			else
+			{
+				g_DpadGateMode = eDpadGateMode::GATE_4WAY;
+			}
+		}
+
+		// 11. D-Pad Cursor Mode
 		var.key   = "ti99sim_dpad_cursor";
 		var.value = nullptr;
 		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
@@ -460,7 +490,7 @@ namespace
 			else                                          g_DpadCursorMode = eDpadCursorMode::DISABLED;
 		}
 
-		// 11. Button Mappings
+		// 12. Button Mappings
 		for( int i = 0; i < SLOT_COUNT; i++ )
 		{
 			var.key   = SlotOptionKeys[ i ];
@@ -678,7 +708,31 @@ namespace
 		rawLeft  = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_LEFT  )) != 0 ) || ( analogX < -ANALOG_DEADZONE );
 		rawRight = (( padMask & ( 1u << RETRO_DEVICE_ID_JOYPAD_RIGHT )) != 0 ) || ( analogX >  ANALOG_DEADZONE );
 
-		// Last-Input-Wins SOCD resolution
+		// Detect new edge presses on each axis for inter-axis Last-Input-Wins resolution
+		bool newHoriz = ( rawLeft && !g_PrevLeft[ port ] ) || ( rawRight && !g_PrevRight[ port ] );
+		bool newVert  = ( rawUp && !g_PrevUp[ port ] ) || ( rawDown && !g_PrevDown[ port ] );
+
+		if( newHoriz && newVert )
+		{
+			if( std::abs( static_cast<int>( analogX )) > std::abs( static_cast<int>( analogY )))
+			{
+				g_LastAxis[ port ] = eLastAxis::HORIZONTAL;
+			}
+			else
+			{
+				g_LastAxis[ port ] = eLastAxis::VERTICAL;
+			}
+		}
+		else if( newHoriz )
+		{
+			g_LastAxis[ port ] = eLastAxis::HORIZONTAL;
+		}
+		else if( newVert )
+		{
+			g_LastAxis[ port ] = eLastAxis::VERTICAL;
+		}
+
+		// Last-Input-Wins SOCD resolution (opposing directions on same axis)
 		if( rawLeft && !g_PrevLeft[ port ] )
 		{
 			g_LastHorizDir[ port ] = -1;
@@ -740,6 +794,23 @@ namespace
 		{
 			outY = 0;
 			g_LastVertDir[ port ] = 0;
+		}
+
+		// 4-Way Directional Gate (Inter-axis Last-Input-Wins for 4-way games like Parsec & Munch Man)
+		if( !rawLeft && !rawRight && !rawUp && !rawDown )
+		{
+			g_LastAxis[ port ] = eLastAxis::NONE;
+		}
+		else if(( g_DpadGateMode == eDpadGateMode::GATE_4WAY ) && ( outX != 0 ) && ( outY != 0 ))
+		{
+			if( g_LastAxis[ port ] == eLastAxis::HORIZONTAL )
+			{
+				outY = 0;
+			}
+			else
+			{
+				outX = 0;
+			}
 		}
 	}
 
@@ -1214,6 +1285,7 @@ RETRO_API bool retro_load_game( const struct retro_game_info *game )
 	memset( g_PrevDown, 0, sizeof( g_PrevDown ));
 	memset( g_LastHorizDir, 0, sizeof( g_LastHorizDir ));
 	memset( g_LastVertDir, 0, sizeof( g_LastVertDir ));
+	memset( g_LastAxis, 0, sizeof( g_LastAxis ));
 
 	UpdateCoreOptions( true );
 
