@@ -15,7 +15,13 @@ export TI_NO_OPENSSL=1
 export CFLAGS="-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -DTI_NO_OPENSSL -include cstring"
 export LFLAGS="-static-libstdc++ -static-libgcc -Wl,--allow-shlib-undefined"
 
-cd "$ROOT/ti99sim"
+# Build in a native container temp directory to avoid macOS VirtioFS
+# metadata latency and file-locking race conditions during 'ar' archive linking
+BUILD_DIR="$(mktemp -d /tmp/ti99sim-build-XXXXXX)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+
+cp -a "$ROOT/ti99sim" "$BUILD_DIR/ti99sim"
+cd "$BUILD_DIR/ti99sim"
 rm -rf bin src/core/Release src/libretro/Release
 mkdir -p bin src/core/Release src/libretro/Release
 
