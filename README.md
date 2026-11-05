@@ -118,6 +118,7 @@ Open the RetroArch Quick Menu (**`Menu + Select` → Core Options**) to customiz
 
 - **System**
   - **System Region / Refresh Rate**: `Auto` / `60 Hz (NTSC)` / `50 Hz (PAL)` (Restart)
+  - **CPU Execution Speed**: `60%` to `150%` (default `100%`, `75%` authentic stock timing for games like *Parsec* where enemy swoop dives are tied to CPU loops)
   - **32K Memory Expansion**: `Enabled` (default) / `Disabled`
   - **TMS5220 Speech Synthesizer**: `Enabled` (default) / `Disabled` (Restart)
   - **Alpha Lock Joystick Up Fix**: `Enabled` (default, fixes TI-99/4A hardware diode bug so `ALPHA LOCK` never blocks Joystick Up) / `Disabled (Authentic Hardware Bug)`

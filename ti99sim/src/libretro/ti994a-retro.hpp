@@ -15,9 +15,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "libretro.h"
 #include "ti994a.hpp"
 #include "tms9918a-retro.hpp"
 #include "tms9919-retro.hpp"
+
+void RetroLog( enum retro_log_level level, const char *fmt, ... );
+void RetroNotify( const char *message, unsigned durationMs = 3000, enum retro_log_level level = RETRO_LOG_INFO );
 
 class cRetroTI994A :
 	public cTI994A
@@ -26,6 +30,7 @@ class cRetroTI994A :
 	cRetroTMS9919      *m_RetroSound;
 	bool                m_Enable32K;
 	bool                m_SpeechEnabled;
+	int                 m_CPUSpeedPercent;
 	int                 m_RefreshRate;
 	UINT8              *m_Fallback32K[ 16 ];
 
@@ -38,6 +43,9 @@ public:
 
 	void SetRefreshRate( int hz );
 	int  GetRefreshRate( ) const { return m_RefreshRate; }
+
+	void SetCPUSpeed( int percent );
+	int  GetCPUSpeed( ) const    { return m_CPUSpeedPercent; }
 
 	void Set32KExpansion( bool enable );
 	bool Get32KExpansion( ) const { return m_Enable32K; }

@@ -11,6 +11,7 @@
 //----------------------------------------------------------------------------
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include "common.hpp"
 #include "logger.hpp"
@@ -155,6 +156,7 @@ cRetroTI994A::cRetroTI994A( iCartridge *console, cRetroTMS9918A *vdp, cRetroTMS9
 	m_RetroSound( sound ),
 	m_Enable32K( true ),
 	m_SpeechEnabled( true ),
+	m_CPUSpeedPercent( 100 ),
 	m_RefreshRate( vdp ? static_cast<int>( vdp->GetRefreshRate( )) : 60 ),
 	m_Fallback32K( )
 {
@@ -300,6 +302,11 @@ void cRetroTI994A::SetRefreshRate( int hz )
 	m_RetraceInterval = m_ClockSpeed / static_cast<UINT32>( m_RefreshRate );
 }
 
+void cRetroTI994A::SetCPUSpeed( int percent )
+{
+	m_CPUSpeedPercent = std::clamp( percent, 50, 200 );
+}
+
 void cRetroTI994A::TimerHookProc( UINT32 )
 {
 	// No-op: VideoRetrace is invoked explicitly at the scanline/VBlank boundary in RunFrame
@@ -357,9 +364,14 @@ bool cRetroTI994A::WakeCPU( UINT32 )
 void cRetroTI994A::RunFrame( int16_t *audioOut, size_t *audioFramesOut )
 {
 	UINT32 startClocks     = m_CPU->GetClocks( );
-	UINT32 frameClocks     = m_RetraceInterval ? m_RetraceInterval : 50000;
+	UINT32 baseClocks      = m_RetraceInterval ? m_RetraceInterval : 50000;
+	UINT32 frameClocks     = ( baseClocks * static_cast<UINT32>( m_CPUSpeedPercent )) / 100;
+	if( frameClocks < 10000 )
+	{
+		frameClocks = 10000;
+	}
 	int    targetSamples   = ( m_RefreshRate == 50 ) ? 882 : 735;
-	UINT32 activeScanClocks = ( frameClocks * 192 ) / 262; // ~36,641 clocks for 192 active lines
+	UINT32 activeScanClocks = ( frameClocks * 192 ) / 262; // ~36,641 clocks at 100% for 192 active lines
 
 	if( m_RetroSound != nullptr )
 	{
@@ -440,8 +452,19 @@ size_t cRetroTI994A::SerializeSize( ) const
 
 bool cRetroTI994A::Serialize( void *data, size_t size ) const
 {
-	if(( data == nullptr ) || ( size < sizeof( sRetroSaveState )))
+	if( data == nullptr )
 	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state save failed: destination buffer is null\n" );
+		RetroNotify( "Save state failed: buffer is null", 3000, RETRO_LOG_ERROR );
+		return false;
+	}
+
+	if( size < sizeof( sRetroSaveState ))
+	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state save failed: buffer size %zu is smaller than required %zu bytes\n", size, sizeof( sRetroSaveState ));
+		char msg[ 96 ];
+		snprintf( msg, sizeof( msg ), "Save state failed: buffer too small (%zu < %zu)", size, sizeof( sRetroSaveState ));
+		RetroNotify( msg, 3500, RETRO_LOG_ERROR );
 		return false;
 	}
 
@@ -615,20 +638,44 @@ bool cRetroTI994A::Serialize( void *data, size_t size ) const
 		}
 	}
 
+	RetroLog( RETRO_LOG_INFO, "[ti99sim] Save state serialized successfully (%zu bytes, version %u)\n", size, SAVESTATE_VERSION );
 	return true;
 }
 
 bool cRetroTI994A::Unserialize( const void *data, size_t size )
 {
-	if(( data == nullptr ) || ( size < sizeof( sRetroSaveState )))
+	if( data == nullptr )
 	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state restore failed: buffer is null\n" );
+		RetroNotify( "Save state load failed: buffer is null", 3000, RETRO_LOG_ERROR );
+		return false;
+	}
+
+	if( size < sizeof( sRetroSaveState ))
+	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state restore failed: size %zu bytes is smaller than required %zu bytes\n", size, sizeof( sRetroSaveState ));
+		char msg[ 96 ];
+		snprintf( msg, sizeof( msg ), "Save state load failed: truncated (%zu < %zu)", size, sizeof( sRetroSaveState ));
+		RetroNotify( msg, 3500, RETRO_LOG_ERROR );
 		return false;
 	}
 
 	const auto *st = static_cast<const sRetroSaveState *>( data );
-	if(( memcmp( st->magic, SAVESTATE_MAGIC, sizeof( SAVESTATE_MAGIC )) != 0 ) ||
-	   ( st->version != SAVESTATE_VERSION ))
+	if( memcmp( st->magic, SAVESTATE_MAGIC, sizeof( SAVESTATE_MAGIC )) != 0 )
 	{
+		char magicBuf[ 9 ] = { };
+		memcpy( magicBuf, st->magic, 8 );
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state restore failed: magic mismatch (got '%.8s', expected '%.8s')\n", magicBuf, SAVESTATE_MAGIC );
+		RetroNotify( "Save state load failed: invalid or corrupt header", 3500, RETRO_LOG_ERROR );
+		return false;
+	}
+
+	if( st->version != SAVESTATE_VERSION )
+	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state restore failed: version mismatch (save v%u, core v%u)\n", st->version, SAVESTATE_VERSION );
+		char msg[ 96 ];
+		snprintf( msg, sizeof( msg ), "Save state load failed: version mismatch (v%u != v%u)", st->version, SAVESTATE_VERSION );
+		RetroNotify( msg, 3500, RETRO_LOG_ERROR );
 		return false;
 	}
 
@@ -881,5 +928,6 @@ bool cRetroTI994A::Unserialize( const void *data, size_t size )
 	cpuMemory.SetMemory( 0x8300, 0x0100, m_Scratchpad, false );
 	cpuMemory.SetMemory( 0x9000, ROM_BANK_SIZE, nullptr, true );
 
+	RetroLog( RETRO_LOG_INFO, "[ti99sim] Save state restored successfully (%zu bytes, version %u)\n", size, st->version );
 	return true;
 }

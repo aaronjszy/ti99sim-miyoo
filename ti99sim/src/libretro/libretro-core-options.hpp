@@ -104,6 +104,31 @@ static struct retro_core_option_v2_definition option_defs_us[] =
 		"ntsc"
 	},
 	{
+		"ti99sim_cpu_speed",
+		"System > CPU Execution Speed",
+		"CPU Execution Speed",
+		"Adjust virtual CPU execution rate per frame. Lower values (e.g. 75%) simulate authentic hardware execution bottlenecks for games like Parsec where enemy dives are tied to CPU loops. Higher values reduce slowdown.",
+		nullptr,
+		"system",
+		{
+			{ "60",  "60%" },
+			{ "65",  "65%" },
+			{ "70",  "70%" },
+			{ "75",  "75% (Authentic Parsec / Stock)" },
+			{ "80",  "80%" },
+			{ "85",  "85%" },
+			{ "90",  "90%" },
+			{ "95",  "95%" },
+			{ "100", "100% (Default)" },
+			{ "110", "110%" },
+			{ "120", "120%" },
+			{ "130", "130%" },
+			{ "150", "150% (Fast)" },
+			{ nullptr, nullptr }
+		},
+		"100"
+	},
+	{
 		"ti99sim_ram_32k",
 		"System > 32K Memory Expansion",
 		"32K Memory Expansion",

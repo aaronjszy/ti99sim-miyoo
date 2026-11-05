@@ -368,6 +368,18 @@ namespace
 			}
 		}
 
+		// CPU Execution Speed (Clock Rate)
+		var.key   = "ti99sim_cpu_speed";
+		var.value = nullptr;
+		if( g_EnvironCb( RETRO_ENVIRONMENT_GET_VARIABLE, &var ) && ( var.value != nullptr ))
+		{
+			int speed = std::atoi( var.value );
+			if( g_Computer != nullptr )
+			{
+				g_Computer->SetCPUSpeed( speed );
+			}
+		}
+
 		// 2. 32K RAM Expansion
 		var.key   = "ti99sim_ram_32k";
 		var.value = nullptr;
@@ -1027,6 +1039,29 @@ namespace
 	}
 }
 
+void RetroLog( enum retro_log_level level, const char *fmt, ... )
+{
+	char buffer[ 512 ];
+	va_list args;
+	va_start( args, fmt );
+	vsnprintf( buffer, sizeof( buffer ), fmt, args );
+	va_end( args );
+
+	if( g_LogCb != nullptr )
+	{
+		g_LogCb( level, "%s", buffer );
+	}
+	else
+	{
+		fputs( buffer, stderr );
+	}
+}
+
+void RetroNotify( const char *message, unsigned durationMs, enum retro_log_level level )
+{
+	ShowNotification( message, durationMs, level );
+}
+
 extern "C"
 {
 
@@ -1376,6 +1411,8 @@ RETRO_API bool retro_serialize( void *data, size_t size )
 {
 	if( g_Computer == nullptr )
 	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state save failed: core not initialized\n" );
+		RetroNotify( "Save state failed: core not initialized", 3000, RETRO_LOG_ERROR );
 		return false;
 	}
 	return g_Computer->Serialize( data, size );
@@ -1385,6 +1422,8 @@ RETRO_API bool retro_unserialize( const void *data, size_t size )
 {
 	if( g_Computer == nullptr )
 	{
+		RetroLog( RETRO_LOG_ERROR, "[ti99sim] Save state restore failed: core not initialized\n" );
+		RetroNotify( "Save state load failed: core not initialized", 3000, RETRO_LOG_ERROR );
 		return false;
 	}
 	return g_Computer->Unserialize( data, size );

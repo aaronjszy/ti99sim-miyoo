@@ -1,4 +1,5 @@
 ti99sim_region = "ntsc"
+ti99sim_cpu_speed = "75"
 ti99sim_ram_32k = "enabled"
 ti99sim_speech = "enabled"
 ti99sim_alphalock_fix = "enabled"
