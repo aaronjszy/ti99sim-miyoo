@@ -17,6 +17,7 @@ export LFLAGS="-static-libstdc++ -static-libgcc -Wl,--allow-shlib-undefined"
 
 cd "$ROOT/ti99sim"
 rm -rf bin src/core/Release src/libretro/Release
+mkdir -p bin src/core/Release src/libretro/Release
 
 make -C src/core
 make -C src/libretro

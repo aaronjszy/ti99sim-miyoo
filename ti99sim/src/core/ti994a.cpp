@@ -355,7 +355,6 @@ UINT8 cTI994A::TrapFunction( void *ptr, int type, bool read, ADDRESS address, UI
 					retVal = pThis->SpeechReadBreakPoint( address, value );
 					break;
 				case TRAP_VIDEO :
-					pThis->m_CPU->AddClocks( 16 );
 					retVal = pThis->VideoReadBreakPoint( address, value );
 					break;
 				case TRAP_GROM :
@@ -382,7 +381,6 @@ UINT8 cTI994A::TrapFunction( void *ptr, int type, bool read, ADDRESS address, UI
 					retVal = pThis->SpeechWriteBreakPoint( address, value );
 					break;
 				case TRAP_VIDEO :
-					pThis->m_CPU->AddClocks( 16 );
 					retVal = pThis->VideoWriteBreakPoint( address, value );
 					break;
 				case TRAP_GROM :
